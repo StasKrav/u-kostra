@@ -25,12 +25,15 @@
       </div>
     </div>
 
-    <div class="scene" id="scene">
-      <div class="fire-glow" id="fire-glow"></div>
-      <video id="fire-video" autoplay loop muted playsinline>
-        <source src="/sounds/fire.mp4" type="video/mp4">
-      </video>
-      <div class="people" id="people"></div>
+    <div class="stage">
+      <div class="scene" id="scene">
+        <div class="fire-glow" id="fire-glow"></div>
+        <video id="fire-video" autoplay loop muted playsinline preload="auto">
+          <source src="/sounds/fire.mp4" type="video/mp4">
+        </video>
+        <div class="people" id="people"></div>
+      </div>
+      <div class="replies" id="replies"></div>
     </div>
 
     <div class="say">
@@ -41,8 +44,6 @@
       <div class="say-hint" id="say-hint"></div>
     </div>
   </main>
-
-  <div class="replies" id="replies"></div>
 </div>
 
 <!-- Модалка выбора ника -->
