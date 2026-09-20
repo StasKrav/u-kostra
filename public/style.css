@@ -1,0 +1,368 @@
+:root {
+  --bg-1: #060402;
+  --bg-2: #120c08;
+  --ember: #ff6b1a;
+  --ember-soft: #ffb066;
+  --ember-dim: #8a3a10;
+  --text: #ede0cc;
+  --text-dim: #9a8a76;
+  --text-faint: #52463c;
+  --wood: #2a1f18;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; }
+
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  background: radial-gradient(ellipse at 50% 85%, var(--bg-2) 0%, var(--bg-1) 65%);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.hidden { display: none !important; }
+
+#app {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: row;
+}
+
+/* === СПИСОК ПОЛЯН === */
+.glades {
+  width: 200px; flex-shrink: 0;
+  background: rgba(8, 5, 3, 0.85);
+  border-right: 1px solid var(--wood);
+  padding: 24px 12px;
+  overflow-y: auto;
+}
+
+.glade-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: 13px;
+  color: var(--text-dim);
+  border-left: 2px solid transparent;
+}
+.glade-item:hover { background: rgba(255, 107, 26, 0.05); color: var(--text); }
+.glade-item.active {
+  color: var(--ember-soft);
+  border-left-color: var(--ember);
+  background: rgba(255, 107, 26, 0.08);
+}
+.glade-item .spark {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--ember-dim);
+  box-shadow: 0 0 6px var(--ember-dim);
+  flex-shrink: 0;
+  transition: all 0.6s;
+}
+.glade-item.active .spark {
+  background: var(--ember);
+  box-shadow: 0 0 12px var(--ember);
+}
+
+/* === ОСНОВНАЯ ОБЛАСТЬ === */
+.main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+.top-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 28px 0;
+}
+.glade-title .label {
+  display: block;
+  font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+  color: var(--text-faint); margin-bottom: 3px;
+}
+.glade-title .title {
+  font-size: 18px; font-style: italic; color: var(--ember-soft);
+  text-shadow: 0 0 20px rgba(255, 107, 26, 0.25);
+}
+.online {
+  font-size: 12px; color: var(--text-dim); font-style: italic;
+  padding: 6px 12px; border: 1px solid var(--wood); border-radius: 3px;
+  background: rgba(10, 6, 4, 0.6);
+}
+.online .dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--ember); margin-right: 7px; vertical-align: middle;
+  box-shadow: 0 0 10px var(--ember);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* === СЦЕНА === */
+.scene { flex: 1; position: relative; min-height: 0; }
+.people {
+  position: absolute; bottom: 40px; left: 50%;
+  transform: translateX(-50%);
+  width: 520px; height: 280px;
+  pointer-events: none; z-index: 5;
+}
+.person {
+  position: absolute; width: 48px; height: 48px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(60,40,25,.9), rgba(20,12,8,.95));
+  border: 1px solid rgba(138,58,16,.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px; color: var(--ember-soft); font-family: Georgia, serif;
+  transform: translate(-50%, -50%);
+  transition: all 0.6s cubic-bezier(.4,0,.2,1);
+  box-shadow: 0 0 15px rgba(0,0,0,.5), inset 0 0 10px rgba(255,107,26,.1);
+}
+.person .name {
+  position: absolute; top: -22px; left: 50%; transform: translateX(-50%);
+  font-size: 10px; color: var(--text-dim); white-space: nowrap;
+  font-style: italic; opacity: 0; transition: opacity 0.3s;
+}
+.person:hover .name { opacity: 1; color: var(--ember-soft); }
+.person.speaking {
+  border-color: var(--ember); color: #fff;
+  transform: translate(-50%, -50%) scale(1.15);
+  box-shadow: 0 0 30px rgba(255,107,26,.6), inset 0 0 15px rgba(255,107,26,.3);
+}
+
+/* === РЕПЛИКИ === */
+.replies {
+  width: 380px; flex-shrink: 0;
+  padding: 90px 24px 20px 20px;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  max-height: 100vh; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%);
+}
+.reply {
+  width: 100%;
+  padding: 10px 16px; margin-bottom: 6px;
+  background: rgba(18,12,8,.82);
+  border-left: 2px solid var(--ember-dim);
+  border-radius: 2px;
+  font-size: 14px; line-height: 1.45;
+  font-style: italic;
+  box-shadow: 0 6px 24px rgba(0,0,0,.5), 0 0 30px rgba(255,107,26,.06);
+  backdrop-filter: blur(6px);
+  animation: replyAppear 0.5s cubic-bezier(.2,.9,.3,1.1);
+}
+.reply .who {
+  display: block; color: var(--ember-soft);
+  font-size: 10px; letter-spacing: 1.5px;
+  margin-bottom: 3px; font-style: normal;
+  text-transform: uppercase; opacity: 0.85;
+}
+@keyframes replyAppear {
+  from { opacity: 0; transform: translateY(20px) scale(.97); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+/* === ВВОД === */
+.say { padding: 12px 28px 22px; }
+.say-inner {
+  max-width: 660px; margin: 0 auto;
+  display: flex; gap: 12px; align-items: flex-end;
+}
+.say textarea {
+  flex: 1; padding: 13px 18px;
+  background: rgba(0,0,0,.5);
+  border: 1px solid var(--wood); border-radius: 3px;
+  color: var(--text); font-size: 15px; font-family: Georgia, serif;
+  font-style: italic; resize: none;
+  min-height: 50px; max-height: 130px;
+  line-height: 1.5; transition: all 0.3s;
+}
+.say textarea:focus {
+  outline: none; border-color: var(--ember-dim);
+  background: rgba(0,0,0,.7);
+  box-shadow: 0 0 25px rgba(255,107,26,.15);
+}
+.say button {
+  padding: 13px 26px;
+  background: transparent; color: var(--ember-soft);
+  border: 1px solid var(--ember-dim); border-radius: 3px;
+  font-size: 14px; font-family: Georgia, serif;
+  letter-spacing: 2px; cursor: pointer;
+  text-transform: uppercase; transition: all 0.3s;
+}
+.say button:hover {
+  border-color: var(--ember); color: #fff;
+  box-shadow: 0 0 25px rgba(255,107,26,.4);
+}
+.say-hint {
+  max-width: 660px; margin: 8px auto 0;
+  font-size: 11px; color: var(--text-faint);
+  font-style: italic; text-align: right;
+  min-height: 14px;
+}
+
+/* === МОДАЛКА === */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(4,2,1,.85);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+.modal-inner {
+  max-width: 460px; width: 100%;
+  background: rgba(18,12,8,.98);
+  border: 1px solid var(--wood);
+  padding: 32px;
+  border-radius: 4px;
+}
+.modal-inner h2 {
+  font-size: 22px; font-weight: normal;
+  color: var(--ember-soft); margin-bottom: 10px;
+  font-style: italic;
+}
+.modal-hint {
+  color: var(--text-dim); font-size: 13px;
+  margin-bottom: 22px; line-height: 1.5;
+}
+.modal-inner input[type="text"] {
+  width: 100%; padding: 12px 16px;
+  background: rgba(0,0,0,.5);
+  border: 1px solid var(--ember-dim); border-radius: 3px;
+  color: var(--text); font-size: 16px;
+  font-family: inherit; margin-bottom: 14px;
+}
+.modal-inner input[type="text"]:focus {
+  outline: none; border-color: var(--ember);
+  box-shadow: 0 0 25px rgba(255,107,26,.25);
+}
+.lock-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  color: var(--text-dim); font-size: 13px;
+  margin-bottom: 22px; cursor: pointer; line-height: 1.4;
+}
+.lock-row input { margin-top: 3px; accent-color: var(--ember); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-actions button {
+  padding: 10px 20px;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--wood); border-radius: 3px;
+  font-family: inherit; font-size: 13px;
+  letter-spacing: 1px; cursor: pointer;
+  transition: all 0.3s; text-transform: uppercase;
+}
+.modal-actions button:hover { color: var(--ember-soft); border-color: var(--ember-dim); }
+.modal-actions #name-ok {
+  color: var(--ember-soft); border-color: var(--ember-dim);
+}
+.modal-actions #name-ok:hover {
+  border-color: var(--ember); color: #fff;
+  box-shadow: 0 0 25px rgba(255,107,26,.4);
+}
+/* === ВИДЕО-КОСТЁР === */
+#fire-video {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%) scale(var(--fire-scale, 1));
+  width: min(70vw, 520px);
+  height: auto;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  filter:
+    brightness(calc(0.7 + var(--fire-intensity, 0.5) * 0.6))
+    contrast(calc(0.95 + var(--fire-intensity, 0.5) * 0.2))
+    saturate(1.05);
+  transition: filter 1.2s ease-out, transform 1.2s ease-out;
+}
+
+.fire-glow {
+  position: absolute;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 700px;
+  height: 400px;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center bottom,
+    rgba(255, 130, 40, calc(0.10 + var(--fire-intensity, 0.5) * 0.30)) 0%,
+    rgba(255, 80, 20, calc(0.04 + var(--fire-intensity, 0.5) * 0.12)) 40%,
+    transparent 70%);
+  transition: background 1.2s ease-out;
+  z-index: 1;
+}
+
+/* === НАСТРОЕНИЯ ПОЛЯН === */
+.scene { --fire-scale: 1; }
+
+.scene[data-mood="warm"] #fire-video {
+  filter: brightness(calc(0.8 + var(--fire-intensity, 0.5) * 0.6))
+          contrast(1.05) saturate(1.1);
+}
+.scene[data-mood="calm"] #fire-video {
+  filter: brightness(calc(0.65 + var(--fire-intensity, 0.5) * 0.5))
+          contrast(0.95) saturate(0.9) hue-rotate(-5deg);
+  --fire-scale: 0.92;
+}
+.scene[data-mood="dark"] #fire-video {
+  filter: brightness(calc(0.45 + var(--fire-intensity, 0.5) * 0.5))
+          contrast(1.1) saturate(0.7) hue-rotate(-15deg);
+  --fire-scale: 0.85;
+}
+.scene[data-mood="bright"] #fire-video {
+  filter: brightness(calc(0.9 + var(--fire-intensity, 0.5) * 0.7))
+          contrast(1.15) saturate(1.3) hue-rotate(5deg);
+  --fire-scale: 1.08;
+}
+.scene[data-mood="any"] #fire-video {
+  filter: brightness(calc(0.6 + var(--fire-intensity, 0.5) * 0.7))
+          contrast(1.05) saturate(1.15) hue-rotate(calc(var(--fire-intensity, 0.5) * 20deg));
+}
+
+/* === ГОВОРЯЩИЙ ПОЯВЛЯЕТСЯ ИЗ ТЕМНОТЫ === */
+.person.ephemeral {
+  opacity: 0;
+  animation: emergeFromDark 3.5s ease-in-out forwards;
+}
+
+@keyframes emergeFromDark {
+  0%   { opacity: 0; filter: blur(6px); transform: translate(-50%, -50%) scale(0.8); }
+  15%  { opacity: 1; filter: blur(0);   transform: translate(-50%, -50%) scale(1); }
+  80%  { opacity: 1; filter: blur(0);   transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; filter: blur(4px); transform: translate(-50%, -50%) scale(0.9); }
+}
+
+.person.ephemeral::before {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 140, 60, 0.35), transparent 70%);
+  animation: speakGlow 1.4s ease-in-out infinite;
+  z-index: -1;
+}
+
+@keyframes speakGlow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.9; transform: scale(1.15); }
+}
+
+
+/* === МОБИЛЬНЫЕ === */
+@media (max-width: 900px) {
+  #app { flex-direction: column; }
+  .glades {
+    width: 100%; display: flex; overflow-x: auto;
+    padding: 10px; border-right: none;
+    border-bottom: 1px solid var(--wood);
+  }
+  .glade-item { flex-shrink: 0; margin-right: 6px; margin-bottom: 0; }
+  .replies {
+    width: 100%; padding: 12px;
+    order: -1;
+    max-height: 36vh;
+    -webkit-mask-image: linear-gradient(to top, transparent 0%, black 20%);
+    mask-image: linear-gradient(to top, transparent 0%, black 20%);
+  }
+  .top-bar { padding: 10px 14px 0; }
+  .glade-title .title { font-size: 15px; }
+  .say { padding: 8px 14px 14px; }
+  .say textarea { font-size: 14px; min-height: 44px; }
+  .say button { padding: 10px 16px; font-size: 12px; }
+  .people { width: 100%; max-width: 340px; height: 160px; bottom: 20px; }
+  .person { width: 38px; height: 38px; font-size: 13px; }
+}
