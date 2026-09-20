@@ -44,6 +44,18 @@ function broadcastActivity(gladeId) {
   });
 }
 
+function broadcastActivityAll() {
+  const glades = queries.listGlades.all();
+  const activities = {};
+  for (const g of glades) {
+    activities[g.slug] = computeActivity(g.id);
+  }
+  const payload = JSON.stringify({ type: 'activity-all', activities });
+  for (const entry of clients.values()) {
+    if (entry.ws.readyState === 1) entry.ws.send(payload);
+  }
+}
+
 function presenceList(gladeId) {
   return queries.listPresence.all(gladeId).map(u => ({
     userId: u.id,
@@ -92,6 +104,7 @@ export function attachWebSocket(server) {
   setInterval(() => {
     queries.cleanupStalePresence.run();
     for (const gid of presenceIndex.keys()) broadcastActivity(gid);
+    broadcastActivityAll();
   }, 10_000);
 }
 

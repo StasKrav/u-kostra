@@ -10,10 +10,11 @@ const state = {
   presence: [],
   activity: 0,
   targetActivity: 0,
+  activities: {},           // ← карта slug → активность
+  presenceByGlade: {},      // ← карта slug → число людей
   ws: null,
   wsReady: false,
 };
-
 // ============================================================
 // WS
 // ============================================================
@@ -61,14 +62,19 @@ function handleServerEvent(msg) {
     case 'presence':
       if (msg.gladeId !== state.currentGlade.id) return;
       state.presence = msg.users;
-      // renderPeople();
       updateOnline();
+      updateGladeCounts();
       break;
     case 'activity':
       state.targetActivity = msg.activity;
+      state.activities[state.currentGlade.slug] = msg.activity;
       updateFireIntensity(msg.activity);
       updateGladeSparks();
       break;
+    case 'activity-all':
+        state.activities = msg.activities;
+        updateGladeSparks();
+        break;  
     case 'rate-limit':
       showHint('Подожди немного. Сказать можно раз в 5 секунд.');
       break;
@@ -105,10 +111,15 @@ function renderGlades() {
     const item = document.createElement('div');
     item.className = 'glade-item' + (g.slug === state.currentGlade.slug ? ' active' : '');
     item.dataset.slug = g.slug;
-    item.innerHTML = `<span class="spark"></span><span>${g.title}</span>`;
+    item.innerHTML = `
+      <span class="spark"></span>
+      <span class="glade-name">${escapeHtml(g.title)}</span>
+      <span class="glade-count" data-count></span>
+    `;
     item.onclick = () => enterGlade(g.slug, false);
     el.appendChild(item);
   });
+  updateGladeSparks();
 }
 
 function enterGlade(slug, silent) {
@@ -126,19 +137,52 @@ function enterGlade(slug, silent) {
 
   document.getElementById('glade-title').textContent = g.title;
   renderGlades();
+  updateGladeCounts();
   renderMessages();
-  // renderPeople();
   updateOnline();
-
-  if (!silent) wsSend({ type: 'sit', glade: g.slug });
-  else wsSend({ type: 'sit', glade: g.slug });
   applyMood(g.mood);
+
+  wsSend({ type: 'sit', glade: g.slug });
 }
 
 function updateGladeSparks() {
-  // Пока просто подсветка активной поляны
   document.querySelectorAll('.glade-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.slug === state.currentGlade.slug);
+    const slug = el.dataset.slug;
+    const isActive = slug === state.currentGlade.slug;
+    el.classList.toggle('active', isActive);
+
+    const spark = el.querySelector('.spark');
+    if (!spark) return;
+
+    const activity = state.activities[slug] || 0;
+
+    // Базовая яркость от активности (0..1)
+    let intensity = Math.min(activity / 20, 1);
+
+    // Активная поляна всегда яркая — она в фокусе
+    if (isActive) intensity = Math.max(intensity, 0.85);
+
+    const alpha = 0.15 + intensity * 0.85;
+    const size = 6 + intensity * 6;
+
+    spark.style.setProperty('--spark-alpha', alpha.toFixed(3));
+    spark.style.setProperty('--spark-size', size.toFixed(1) + 'px');
+  });
+}
+
+function updateGladeCounts() {
+  // Обновляем счётчик только для активной поляны (для остальных у нас нет данных)
+  const items = document.querySelectorAll('.glade-item');
+  items.forEach(el => {
+    const countEl = el.querySelector('[data-count]');
+    if (!countEl) return;
+
+    if (el.dataset.slug === state.currentGlade.slug) {
+      const n = state.presence.length;
+      countEl.textContent = n > 0 ? n : '';
+    } else {
+      countEl.textContent = '';
+    }
   });
 }
 
@@ -233,14 +277,6 @@ function updateFireIntensity(activity) {
   const target = Math.max(0, Math.min(activity / 25, 1));
   displayedIntensity += (target - displayedIntensity) * 0.15;
   document.documentElement.style.setProperty('--fire-intensity', displayedIntensity.toFixed(3));
-}
-
-function flashSpeaking(name) {
-  const el = [...document.querySelectorAll('.person')]
-    .find(p => p.querySelector('.name')?.textContent === name);
-  if (!el) return;
-  el.classList.add('speaking');
-  setTimeout(() => el.classList.remove('speaking'), 3000);
 }
 
 function updateOnline() {
