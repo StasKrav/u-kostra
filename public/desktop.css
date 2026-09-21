@@ -14,7 +14,7 @@
 .glades {
   background: rgba(8, 5, 3, 0.85);
   border-right: 1px solid var(--wood);
-  padding: 24px 12px;
+  /* padding: 24px 12px; */
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--ember-dim) transparent;

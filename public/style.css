@@ -25,7 +25,7 @@
 html, body { height: 100%; overflow: hidden; }
 
 body {
-  font-family: Georgia, "Times New Roman", serif;
+  font-family:'Comfortaa', Georgia, "Times New Roman", serif;
   background: radial-gradient(ellipse at 50% 85%, var(--bg-2) 0%, var(--bg-1) 65%);
   color: var(--text);
   line-height: 1.6;
@@ -81,13 +81,26 @@ body {
   font-size: 11px;
   color: var(--ember-soft);
   opacity: 0.7;
-  font-style: italic;
   min-width: 16px;
   text-align: right;
 }
 .glade-item.active .glade-count { opacity: 1; }
 
 /* === САЙДБАР: ЯКОРЬ И СТРЕЛКА === */
+.sidebar {
+  background: rgba(8, 5, 3, 0.85);
+  border-right: 1px solid var(--wood);
+  padding: 24px 12px;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ember-dim) transparent;
+}
+.sidebar::-webkit-scrollbar { width: 6px; }
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--ember-dim);
+  border-radius: 3px;
+}
 .sidebar-anchor {
   display: flex;
   align-items: center;
@@ -117,76 +130,87 @@ body {
   flex-shrink: 0;
 }
 
-.sidebar-back {
+/* === САЙДБАР: СТРОКА С КНОПКАМИ === */
+.topics-bar-inner {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 8px 0;
   margin-bottom: 8px;
-  font-size: 12px;
-  color: var(--text-faint);
-  font-style: italic;
-  cursor: pointer;
-  transition: color 0.2s;
-  border: none;
+  border-bottom: 1px solid var(--wood);
+}
+
+.topics-bar-spacer {
+  flex: 1;
+}
+
+/* Стрелка назад — компактная кнопка */
+.sidebar-back {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  text-align: left;
-  width: 100%;
-  font-family: inherit;
+  border: 1px solid var(--wood);
+  border-radius: 3px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
 }
 .sidebar-back:hover {
   color: var(--ember-soft);
+  border-color: var(--ember-dim);
+  background: rgba(255, 107, 26, 0.05);
 }
 .sidebar-back .icon-arrow {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
+}
+
+/* Кнопка «новая тема» — компактная, справа */
+.topic-new {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ember-dim);
+  border-radius: 3px;
+  color: var(--ember-soft);
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.topic-new:hover {
+  border-color: var(--ember);
+  background: rgba(255, 107, 26, 0.1);
+  box-shadow: 0 0 15px rgba(255, 107, 26, 0.2);
+}
+.topic-new .icon-plus {
+  width: 16px;
+  height: 16px;
 }
 
 /* === САЙДБАР: ЗАГОЛОВОК ПОЛЯНЫ В РЕЖИМЕ ТЕМ === */
 .sidebar-section-title {
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  font-size: 12px;
+  padding: 4px 12px 10px;
+  font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--text-faint);
   border-bottom: 1px solid var(--wood);
-}
-
-/* === САЙДБАР: КНОПКА «НОВАЯ ТЕМА» === */
-.topic-new {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  margin-bottom: 12px;
-  border-radius: 3px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--ember-soft);
-  border: 1px dashed var(--ember-dim);
-  background: transparent;
-  transition: all 0.2s;
-  font-family: inherit;
-  text-align: left;
-  width: 100%;
-}
-.topic-new:hover {
-  border-style: solid;
-  border-color: var(--ember);
-  background: rgba(255, 107, 26, 0.08);
-  box-shadow: 0 0 20px rgba(255, 107, 26, 0.15);
-}
-.topic-new .icon-plus {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
+  margin-bottom: 8px;
 }
 
 /* === САЙДБАР: ЭЛЕМЕНТ ТЕМЫ === */
 .topic-item {
   padding: 10px 12px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
   border-radius: 3px;
   cursor: pointer;
   transition: background 0.2s;
@@ -202,9 +226,8 @@ body {
 .topic-item .topic-title {
   font-size: 13px;
   color: var(--text);
-  font-style: italic;
   line-height: 1.35;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -217,7 +240,16 @@ body {
 .topic-item .topic-meta {
   font-size: 11px;
   color: var(--text-faint);
-  font-style: italic;
+}
+
+.topics-bar {
+  /* БЕЗ padding! Он у .sidebar */
+  margin-top: 8px;
+}
+
+.topic-item + .topic-item {
+  border-top: 1px solid rgba(42, 31, 24, 0.5);
+  margin-top: 8px;
 }
 
 /* === МОДАЛКА: ПОЛЕ ОПИСАНИЯ === */
@@ -233,7 +265,6 @@ body {
 }
 .glade-title {
   font-size: 18px;
-  font-style: italic;
   color: var(--ember-soft);
   text-shadow: 0 0 20px rgba(255, 107, 26, 0.25);
   margin-bottom: 4px;
@@ -241,7 +272,6 @@ body {
 .glade-desc {
   font-size: 12px;
   color: var(--text-faint);
-  font-style: italic;
   line-height: 1.4;
 }
 
@@ -274,7 +304,6 @@ body {
   border-radius: 2px;
   font-size: 14px;
   line-height: 1.5;
-  font-style: italic;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 107, 26, 0.06);
   backdrop-filter: blur(6px);
   animation: replyAppear 0.5s cubic-bezier(.2, .9, .3, 1.1);
@@ -313,8 +342,7 @@ body {
   border-radius: 3px;
   color: var(--text);
   font-size: 15px;
-  font-family: Georgia, serif;
-  font-style: italic;
+  font-family: 'Source Sans 3', sans-serif;
   resize: none;
   min-height: 50px;
   max-height: 130px;
@@ -351,7 +379,6 @@ body {
   margin-top: 8px;
   font-size: 11px;
   color: var(--text-faint);
-  font-style: italic;
   text-align: right;
   min-height: 14px;
 }
@@ -372,7 +399,6 @@ body {
   margin-right: auto;
   font-size: 12px;
   color: var(--text-dim);
-  font-style: italic;
 }
 .online .dot {
   display: inline-block;
@@ -489,7 +515,6 @@ body {
   font-size: 10px;
   color: var(--text-dim);
   white-space: nowrap;
-  font-style: italic;
   opacity: 0;
   transition: opacity 0.3s;
 }

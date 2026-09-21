@@ -29,7 +29,7 @@ function connectWS() {
   const ws = new WebSocket(`${proto}//${location.host}/ws`);
   state.ws = ws;
 
-  ws.onopen = () => { state.wsReady = true; enterGlade(state.currentGlade.slug, true); };
+  ws.onopen = () => { state.wsReady = true; enterGlade(state.currentGlade.slug); };
   ws.onclose = () => { state.wsReady = false; setTimeout(connectWS, 2000); };
   ws.onmessage = e => {
     let msg; try { msg = JSON.parse(e.data); } catch { return; }
@@ -118,11 +118,32 @@ async function init() {
 // ============================================================
 // ПОЛЯНЫ
 // ============================================================
+// ============================================================
+// САЙДБАР
+// ============================================================
 function renderSidebar() {
-  const el = document.getElementById('glades');
-  el.innerHTML = '';
+  const gladesEl = document.getElementById('glades');
+  const topicsEl = document.getElementById('topics-bar');
 
-  // Якорь «Общий костёр» — всегда наверху
+  gladesEl.innerHTML = '';
+  topicsEl.innerHTML = '';
+
+  // Якорь «Общий костёр» — всегда
+  renderAnchor(gladesEl);
+
+  // Содержимое — в зависимости от состояния
+  if (state.sidebarView === 'glades') {
+    renderGladeSection(gladesEl);
+  } else if (state.sidebarView === 'topics') {
+    renderTopicsSection(gladesEl, topicsEl, { inTopic: false });
+  } else if (state.sidebarView === 'topic') {
+    renderTopicsSection(gladesEl, topicsEl, { inTopic: true });
+  }
+
+  updateGladeSparks();
+}
+
+function renderAnchor(el) {
   const anchor = document.createElement('div');
   anchor.className = 'sidebar-anchor' + (state.currentGlade?.slug === 'common' ? ' active' : '');
   anchor.innerHTML = `
@@ -133,26 +154,18 @@ function renderSidebar() {
   `;
   anchor.onclick = () => enterGlade('common');
   el.appendChild(anchor);
-
-  // Дальше — либо список полян, либо список тем
-  if (state.sidebarView === 'glades') {
-    renderGladeList(el);
-  } else {
-    renderTopicList(el);
-  }
-
-  updateGladeSparks();
 }
 
-function renderGladeList(el) {
+function renderGladeSection(el) {
   // Заголовок «Поляны»
   const title = document.createElement('div');
   title.className = 'sidebar-section-title';
   title.textContent = 'Поляны';
   el.appendChild(title);
 
+  // Список полян
   state.glades.forEach(g => {
-    if (g.slug === 'common') return; // якорь уже отрисован
+    if (g.slug === 'common') return;
     const item = document.createElement('div');
     item.className = 'glade-item' + (g.slug === state.currentGlade?.slug ? ' active' : '');
     item.dataset.slug = g.slug;
@@ -166,67 +179,67 @@ function renderGladeList(el) {
   });
 }
 
-function renderTopicList(el) {
+function renderTopicsSection(gladesEl, topicsEl, { inTopic }) {
   const glade = state.currentGlade;
   if (!glade) return;
+
+  // Заголовок — всегда название поляны
+    const title = document.createElement('div');
+    title.className = 'sidebar-section-title';
+    title.textContent = glade.title;
+    gladesEl.appendChild(title);
+
+  // Строка с кнопками — во второй колонке
+  const bar = document.createElement('div');
+  bar.className = 'topics-bar-inner';
 
   // Стрелка назад
   const back = document.createElement('button');
   back.className = 'sidebar-back';
+  back.title = inTopic ? 'К темам' : 'К полянам';
   back.innerHTML = `
     <svg class="icon icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="15 18 9 12 15 6"/>
     </svg>
-    <span>назад к полянам</span>
   `;
   back.onclick = () => {
-    state.sidebarView = 'glades';
+    state.sidebarView = inTopic ? 'topics' : 'glades';
     renderSidebar();
   };
-  el.appendChild(back);
+  bar.appendChild(back);
 
-  // Заголовок поляны
-  const title = document.createElement('div');
-  title.className = 'sidebar-section-title';
-  title.textContent = glade.title;
-  el.appendChild(title);
+  // Плюс — только если НЕ в теме
+  if (!inTopic) {
+    const spacer = document.createElement('div');
+    spacer.className = 'topics-bar-spacer';
+    bar.appendChild(spacer);
 
-  // Кнопка «новая тема» — только в состоянии 'topics'
-  if (state.sidebarView === 'topics') {
     const newBtn = document.createElement('button');
     newBtn.className = 'topic-new';
+    newBtn.title = 'Новая тема';
     newBtn.innerHTML = `
       <svg class="icon icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"/>
         <line x1="5" y1="12" x2="19" y2="12"/>
       </svg>
-      <span>новая тема</span>
     `;
     newBtn.onclick = () => openTopicModal();
-    el.appendChild(newBtn);
+    bar.appendChild(newBtn);
   }
+
+  topicsEl.appendChild(bar);
 
   // Список тем
   const topics = state.topicsByGlade[glade.slug] || [];
-  if (topics.length === 0) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'padding: 16px 12px; font-size: 12px; color: var(--text-faint); font-style: italic; text-align: center;';
-    empty.textContent = 'Тем пока нет. Создай первую.';
-    el.appendChild(empty);
-    return;
-  }
-
   for (const t of topics) {
     const item = document.createElement('div');
     item.className = 'topic-item' + (t.id === state.currentTopic?.id ? ' active' : '');
-    const count = t.message_count || 0;
-    const when = t.last_message_at || t.created_at;
     item.innerHTML = `
       <div class="topic-title">${escapeHtml(t.title || '(без названия)')}</div>
-      <div class="topic-meta">${count} ${pluralizeReplies(count)} · ${relativeTime(when)}</div>
+      <div class="topic-meta">${t.message_count || 0} ${pluralizeReplies(t.message_count || 0)}</div>
     `;
     item.onclick = () => enterTopic(t);
-    el.appendChild(item);
+    topicsEl.appendChild(item);
   }
 }
 

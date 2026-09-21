@@ -9,54 +9,216 @@
   flex-direction: column;
 }
 
-/* Сайдбар — горизонтальный скролл сверху */
+/* === САЙДБАР — горизонтальная полоса сверху === */
+/* === САЙДБАР — две строки === */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--wood);
+  background: rgba(8, 5, 3, 0.9);
+}
+
+/* Строка 1: поляны */
 .glades {
   width: 100%;
   display: flex;
+  flex-direction: row;
+  align-items: center;
   overflow-x: auto;
-  padding: 10px 10px 8px;
-  border-right: none;
-  border-bottom: 1px solid var(--wood);
-  background: rgba(8, 5, 3, 0.85);
-  flex-shrink: 0;
+  padding: 8px 10px;
+  border-bottom: none;
+  background: transparent;
   scrollbar-width: none;
 }
 .glades::-webkit-scrollbar { display: none; }
 
-.glade-item {
+/* Строка 2: темы */
+.topics-bar {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  overflow-x: auto;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--wood);
+  background: rgba(6, 4, 2, 0.5);
+  scrollbar-width: none;
+}
+.topics-bar::-webkit-scrollbar { display: none; }
+
+/* Общие правила для элементов в обеих строках */
+.glade-item,
+.sidebar-anchor,
+.sidebar-back,
+.topic-new,
+.topic-item {
   flex-shrink: 0;
   margin-right: 6px;
   margin-bottom: 0;
-  padding: 8px 12px;
+}
+
+/* Компактные размеры */
+.sidebar-anchor {
+  padding: 7px 12px;
+  font-size: 12px;
+  gap: 6px;
+}
+.sidebar-anchor .icon-fire { width: 12px; height: 12px; }
+
+.sidebar-back {
+  padding: 6px 10px;
+  font-size: 11px;
+  width: auto;
+  margin-bottom: 0;
+}
+.sidebar-back .icon-arrow { width: 12px; height: 12px; }
+
+.topic-new {
+  padding: 6px 12px;
+  font-size: 12px;
+  width: auto;
+  gap: 6px;
+}
+.topic-new .icon-plus { width: 12px; height: 12px; }
+
+.glade-item {
+  padding: 7px 12px;
   font-size: 12px;
 }
 
-/* Центр — растягивается */
+.topic-item {
+  padding: 6px 12px;
+  max-width: 200px;
+  border-left: none;
+  border-bottom: 2px solid transparent;
+}
+.topic-item.active {
+  border-left: none;
+  border-bottom-color: var(--ember);
+  background: transparent;
+}
+.topic-item .topic-title {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-bottom: 0;
+}
+.topic-item .topic-meta {
+  display: none;
+}
+
+/* Заголовок раздела не нужен */
+.sidebar-section-title {
+  display: none;
+}
+.glades::-webkit-scrollbar { display: none; }
+
+/* Все элементы в строку, не сжимаются */
+.glade-item,
+.sidebar-anchor,
+.sidebar-back,
+.topic-new,
+.topic-item,
+.sidebar-section-title {
+  flex-shrink: 0;
+  margin-right: 6px;
+  margin-bottom: 0;
+}
+
+/* Компактные размеры */
+.sidebar-anchor {
+  padding: 7px 12px;
+  font-size: 12px;
+  gap: 6px;
+}
+.sidebar-anchor .icon-fire { width: 12px; height: 12px; }
+
+.sidebar-back {
+  padding: 7px 10px;
+  font-size: 11px;
+  width: auto;
+}
+.sidebar-back .icon-arrow { width: 12px; height: 12px; }
+
+.topic-new {
+  padding: 7px 12px;
+  font-size: 12px;
+  width: auto;
+  gap: 6px;
+}
+.topic-new .icon-plus { width: 12px; height: 12px; }
+
+.glade-item {
+  padding: 7px 12px;
+  font-size: 12px;
+}
+
+.topic-item {
+  padding: 7px 12px;
+  max-width: 200px;
+}
+.topic-item .topic-title {
+  font-size: 12px;
+  -webkit-line-clamp: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-bottom: 0;
+}
+.topic-item .topic-meta {
+  display: none;
+}
+
+/* Заголовок раздела — как разделитель, но компактный */
+.sidebar-section-title {
+  padding: 7px 10px;
+  margin-right: 6px;
+  font-size: 10px;
+  border-bottom: none;
+  border-right: 1px solid var(--wood);
+  align-self: center;
+  letter-spacing: 1px;
+}
+
+/* === ЦЕНТР === */
 .center {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
+/* Заголовок поляны/темы */
 .glade-header {
   padding: 10px 14px 8px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--wood);
 }
-.glade-title { font-size: 15px; }
-.glade-desc  { font-size: 11px; }
+.glade-title {
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+.glade-desc {
+  font-size: 11px;
+}
 
-/* Реплики — над сценой, до 40vh */
+/* Реплики — растут, скролл внутри */
 .replies {
-  order: 1;
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: 40vh;
-  padding: 8px 12px 4px;
+  max-height: 45vh;
+  padding: 8px 12px;
   justify-content: flex-end;
+  overflow-y: auto;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
   mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
 }
-
 .reply {
   font-size: 13px;
   padding: 7px 11px;
@@ -64,24 +226,19 @@
 }
 .reply .who { font-size: 9px; }
 
-/* Правая колонка — сцена внизу */
+/* === ПРАВАЯ КОЛОНКА — панель + сцена === */
 .right {
-  order: 2;
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 200px;
+  flex: 0 0 auto;
   border-left: none;
   border-top: 1px solid var(--wood);
   background: transparent;
 }
 
 .panel {
-  order: 0;
   padding: 8px 12px;
   border-bottom: none;
-  border-top: none;
-  background: transparent;
 }
 .panel-btn {
   width: 32px;
@@ -90,11 +247,11 @@
 .online { font-size: 11px; }
 
 .scene {
-  order: 1;
+  position: relative;
   flex: 1 1 auto;
-  min-height: 200px;
+  min-height: 180px;
+  max-height: 40vh;
 }
-
 #fire-video {
   width: min(92vw, 420px);
   bottom: -20px;
@@ -104,7 +261,6 @@
   height: 300px;
   bottom: -60px;
 }
-
 .people {
   width: 100%;
   max-width: 340px;
@@ -114,7 +270,7 @@
 .person { width: 38px; height: 38px; font-size: 13px; }
 .person .name { font-size: 10px; top: -20px; }
 
-/* Ввод — фиксирован внизу */
+/* === ВВОД — внизу === */
 .say {
   padding: 8px 12px 12px;
   flex-shrink: 0;
@@ -135,7 +291,17 @@
 }
 .say-hint { font-size: 10px; }
 
-/* Шторка настроек — на мобильных выезжает сверху сцены */
+/* === МОДАЛКИ === */
+.modal-inner {
+  padding: 22px;
+}
+.modal-inner h2 { font-size: 18px; }
+.modal-hint { font-size: 12px; margin-bottom: 16px; }
+.modal-inner input[type="text"] { padding: 10px 14px; font-size: 15px; }
+.lock-row { font-size: 12px; margin-bottom: 16px; }
+.modal-actions button { padding: 9px 16px; font-size: 12px; }
+
+/* === ШТОРКА НАСТРОЕК === */
 .drawer {
   max-height: 70%;
 }
