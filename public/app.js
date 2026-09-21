@@ -15,7 +15,11 @@ const state = {
   ws: null,
   wsReady: false,
   soundOn: false,       
-  fireAudio: null,      
+  fireAudio: null,
+  currentTopic: null,
+  topicsByGlade: {},      
+  sidebarView: 'glades',
+  commonTopicId: null,
 };
 // ============================================================
 // WS
@@ -42,42 +46,51 @@ function handleServerEvent(msg) {
     case 'ready':
       state.me = { ...state.me, userId: msg.userId, displayName: msg.displayName };
       break;
+
     case 'history':
-      if (msg.gladeSlug !== state.currentGlade.slug) return;
+      if (msg.topicId !== state.currentTopic?.id) return;
+      state.currentTopic = msg.topic;
       state.messages = msg.messages;
       state.targetActivity = msg.activity;
       renderMessages();
+      updateGladeHeader();
       break;
+
     case 'reply':
-      if (msg.gladeId !== state.currentGlade.id) return;
+      if (msg.topicId !== state.currentTopic?.id) return;
       state.messages.push(msg.message);
       renderMessages();
       break;
-    
+
     case 'speaking':
-      if (msg.gladeId !== state.currentGlade.id) return;
+      if (msg.topicId !== state.currentTopic?.id) return;
       if (msg.userId === state.me.userId) return;
       spawnSpeaker(msg.name || 'Аноним');
       break;
+
     case 'presence':
-      if (msg.gladeId !== state.currentGlade.id) return;
+      if (msg.topicId !== state.currentTopic?.id) return;
       state.presence = msg.users;
       updateOnline();
       updateGladeCounts();
       break;
+
     case 'activity':
+      if (msg.topicId !== state.currentTopic?.id) return;
       state.targetActivity = msg.activity;
-      state.activities[state.currentGlade.slug] = msg.activity;
       updateFireIntensity(msg.activity);
       updateGladeSparks();
       break;
+
     case 'activity-all':
-        state.activities = msg.activities;
-        updateGladeSparks();
-        break;  
+      state.activities = msg.activities;
+      updateGladeSparks();
+      break;
+
     case 'rate-limit':
       showHint('Подожди немного. Сказать можно раз в 5 секунд.');
       break;
+
     case 'name-set':
       state.me.displayName = msg.name;
       break;
@@ -95,7 +108,7 @@ async function init() {
   state.glades = glades;
   state.currentGlade = glades[0];
 
-  renderGlades();
+  renderSidebar();
   // initFire();
   connectWS();
   bindUI();
@@ -105,47 +118,232 @@ async function init() {
 // ============================================================
 // ПОЛЯНЫ
 // ============================================================
-function renderGlades() {
+function renderSidebar() {
   const el = document.getElementById('glades');
   el.innerHTML = '';
+
+  // Якорь «Общий костёр» — всегда наверху
+  const anchor = document.createElement('div');
+  anchor.className = 'sidebar-anchor' + (state.currentGlade?.slug === 'common' ? ' active' : '');
+  anchor.innerHTML = `
+    <svg class="icon icon-fire" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+    </svg>
+    <span>Общий костёр</span>
+  `;
+  anchor.onclick = () => enterGlade('common');
+  el.appendChild(anchor);
+
+  // Дальше — либо список полян, либо список тем
+  if (state.sidebarView === 'glades') {
+    renderGladeList(el);
+  } else {
+    renderTopicList(el);
+  }
+
+  updateGladeSparks();
+}
+
+function renderGladeList(el) {
+  // Заголовок «Поляны»
+  const title = document.createElement('div');
+  title.className = 'sidebar-section-title';
+  title.textContent = 'Поляны';
+  el.appendChild(title);
+
   state.glades.forEach(g => {
+    if (g.slug === 'common') return; // якорь уже отрисован
     const item = document.createElement('div');
-    item.className = 'glade-item' + (g.slug === state.currentGlade.slug ? ' active' : '');
+    item.className = 'glade-item' + (g.slug === state.currentGlade?.slug ? ' active' : '');
     item.dataset.slug = g.slug;
     item.innerHTML = `
       <span class="spark"></span>
       <span class="glade-name">${escapeHtml(g.title)}</span>
       <span class="glade-count" data-count></span>
     `;
-    item.onclick = () => enterGlade(g.slug, false);
+    item.onclick = () => enterGlade(g.slug);
     el.appendChild(item);
   });
-  updateGladeSparks();
 }
 
-function enterGlade(slug, silent) {
+function renderTopicList(el) {
+  const glade = state.currentGlade;
+  if (!glade) return;
+
+  // Стрелка назад
+  const back = document.createElement('button');
+  back.className = 'sidebar-back';
+  back.innerHTML = `
+    <svg class="icon icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    <span>назад к полянам</span>
+  `;
+  back.onclick = () => {
+    state.sidebarView = 'glades';
+    renderSidebar();
+  };
+  el.appendChild(back);
+
+  // Заголовок поляны
+  const title = document.createElement('div');
+  title.className = 'sidebar-section-title';
+  title.textContent = glade.title;
+  el.appendChild(title);
+
+  // Кнопка «новая тема» — только в состоянии 'topics'
+  if (state.sidebarView === 'topics') {
+    const newBtn = document.createElement('button');
+    newBtn.className = 'topic-new';
+    newBtn.innerHTML = `
+      <svg class="icon icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span>новая тема</span>
+    `;
+    newBtn.onclick = () => openTopicModal();
+    el.appendChild(newBtn);
+  }
+
+  // Список тем
+  const topics = state.topicsByGlade[glade.slug] || [];
+  if (topics.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding: 16px 12px; font-size: 12px; color: var(--text-faint); font-style: italic; text-align: center;';
+    empty.textContent = 'Тем пока нет. Создай первую.';
+    el.appendChild(empty);
+    return;
+  }
+
+  for (const t of topics) {
+    const item = document.createElement('div');
+    item.className = 'topic-item' + (t.id === state.currentTopic?.id ? ' active' : '');
+    const count = t.message_count || 0;
+    const when = t.last_message_at || t.created_at;
+    item.innerHTML = `
+      <div class="topic-title">${escapeHtml(t.title || '(без названия)')}</div>
+      <div class="topic-meta">${count} ${pluralizeReplies(count)} · ${relativeTime(when)}</div>
+    `;
+    item.onclick = () => enterTopic(t);
+    el.appendChild(item);
+  }
+}
+
+// Утилиты для склонений и времени
+function pluralizeReplies(n) {
+  if (n === 0) return 'реплик';
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'реплика';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'реплики';
+  return 'реплик';
+}
+
+function relativeTime(ts) {
+  if (!ts) return '';
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - ts;
+  if (diff < 60) return 'только что';
+  if (diff < 3600) return `${Math.floor(diff / 60)} мин назад`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ч назад`;
+  if (diff < 86400 * 7) return `${Math.floor(diff / 86400)} дн назад`;
+  return new Date(ts * 1000).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+
+async function enterGlade(slug) {
   const g = state.glades.find(x => x.slug === slug);
   if (!g) return;
 
-  if (state.sitting && state.currentGlade) {
-    wsSend({ type: 'leave', glade: state.currentGlade.slug });
+  // Выйти из старой темы
+  if (state.currentTopic) {
+    wsSend({ type: 'leave-topic', topicId: state.currentTopic.id });
   }
 
   state.currentGlade = g;
-  updateFireIntensity(state.targetActivity);
+  state.currentTopic = null;
   state.messages = [];
   state.presence = [];
   state.sitting = true;
 
-  document.getElementById('glade-title').textContent = g.title;
-  document.getElementById('glade-desc').textContent = g.description || '';
-  renderGlades();
+  updateGladeHeader();
   updateGladeCounts();
   renderMessages();
   updateOnline();
   applyMood(g.mood);
 
-  wsSend({ type: 'sit', glade: g.slug });
+  // Загрузить темы поляны
+  try {
+    const res = await fetch(`/api/glades/${slug}/topics`);
+    if (!res.ok) throw new Error('failed to load topics');
+    const data = await res.json();
+    state.topicsByGlade[slug] = data.topics;
+
+    // Служебная тема общего костра — запомнить id
+    if (slug === 'common') {
+      const topic = data.topics[0];
+      if (topic) {
+        state.commonTopicId = topic.id;
+        // Заходим в служебную тему, но сайдбар остаётся списком полян
+        enterTopic(topic, /* keepSidebarView */ true);
+        state.sidebarView = 'glades';
+      }
+    
+    } else {
+      state.sidebarView = 'topics';
+      // Заходим в первую (самую активную) тему,
+      // но сайдбар оставляем на списке тем.
+      if (data.topics.length >= 1) {
+        enterTopic(data.topics[0], /* keepSidebarView */ true);
+      }
+    }
+  } catch (e) {
+    console.error('Не удалось загрузить темы:', e);
+  }
+
+  renderSidebar();
+}
+
+function enterTopic(topic, keepSidebarView = false) {
+  if (state.currentTopic?.id === topic.id) {
+    if (!keepSidebarView) state.sidebarView = 'topic';
+    renderSidebar();
+    return;
+  }
+
+  state.currentTopic = topic;
+  state.messages = [];
+  state.presence = [];
+  if (!keepSidebarView) state.sidebarView = 'topic';
+
+  updateGladeHeader();
+  renderMessages();
+  updateOnline();
+  renderSidebar();
+
+  wsSend({ type: 'enter-topic', topicId: topic.id });
+}
+
+function updateGladeHeader() {
+  const titleEl = document.getElementById('glade-title');
+  const descEl  = document.getElementById('glade-desc');
+
+  if (state.currentGlade?.slug === 'common') {
+    // Общий костёр — всегда название поляны, без темы
+    titleEl.textContent = state.currentGlade.title;
+    descEl.textContent = state.currentGlade.description || '';
+    return;
+  }
+
+  if (state.currentTopic) {
+    titleEl.textContent = state.currentTopic.title || '(без названия)';
+    descEl.textContent = state.currentTopic.description
+      || state.currentGlade?.description
+      || '';
+  } else if (state.currentGlade) {
+    titleEl.textContent = state.currentGlade.title;
+    descEl.textContent = state.currentGlade.description || '';
+  }
 }
 
 function updateGladeSparks() {
@@ -557,6 +755,13 @@ function bindUI() {
     if (e.key === 'Enter') submitName();
   });
 
+  // Модалка создания темы
+  document.getElementById('topic-ok').onclick = submitTopic;
+  document.getElementById('topic-cancel').onclick = () => closeTopicModal();
+  document.getElementById('topic-title').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitTopic();
+  });
+
   // Шторка настроек
   const drawer = document.getElementById('settings-drawer');
   document.getElementById('settings-btn').onclick = () => {
@@ -643,13 +848,14 @@ function say() {
   const input = document.getElementById('say-input');
   const text = input.value.trim();
   if (!text) return;
+  if (!state.currentTopic) return;
 
   if (!state.me.displayName) {
     openNameModal(text);
     return;
   }
 
-  wsSend({ type: 'say', glade: state.currentGlade.slug, text });
+  wsSend({ type: 'say', topicId: state.currentTopic.id, text });
   input.value = '';
   input.style.height = 'auto';
   showHint('');
@@ -675,8 +881,8 @@ function submitName() {
 
   document.getElementById('name-modal').classList.add('hidden');
 
-  if (pendingText) {
-    wsSend({ type: 'say', glade: state.currentGlade.slug, text: pendingText });
+  if (pendingText && state.currentTopic) {
+    wsSend({ type: 'say', topicId: state.currentTopic.id, text: pendingText });
     document.getElementById('say-input').value = '';
     pendingText = null;
   }
@@ -686,6 +892,45 @@ function showHint(text) {
   document.getElementById('say-hint').textContent = text || '';
 }
 
+function openTopicModal() {
+  document.getElementById('topic-title').value = '';
+  document.getElementById('topic-desc').value = '';
+  document.getElementById('topic-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('topic-title').focus(), 100);
+}
+
+function closeTopicModal() {
+  document.getElementById('topic-modal').classList.add('hidden');
+}
+
+async function submitTopic() {
+  const title = document.getElementById('topic-title').value.trim();
+  if (!title) return;
+  const description = document.getElementById('topic-desc').value.trim();
+
+  const slug = state.currentGlade.slug;
+  try {
+    const res = await fetch(`/api/glades/${slug}/topics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, description }),
+    });
+    if (!res.ok) throw new Error('failed to create topic');
+    const data = await res.json();
+
+    // Добавить в локальный список
+    if (!state.topicsByGlade[slug]) state.topicsByGlade[slug] = [];
+    state.topicsByGlade[slug].unshift(data.topic);
+
+    closeTopicModal();
+
+    // Сразу перейти в новую тему
+    enterTopic(data.topic);
+  } catch (e) {
+    console.error('Не удалось создать тему:', e);
+    alert('Не удалось создать тему');
+  }
+}
 // ============================================================
 // УТИЛИТЫ
 // ============================================================

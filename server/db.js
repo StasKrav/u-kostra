@@ -36,17 +36,32 @@ db.exec(`
     expires_at   INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS topics (
+    id              INTEGER PRIMARY KEY,
+    glade_id        INTEGER NOT NULL REFERENCES glades(id) ON DELETE CASCADE,
+    title           TEXT,
+    description     TEXT,
+    created_by      INTEGER REFERENCES users(id),
+    created_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+    last_message_at INTEGER,
+    message_count   INTEGER NOT NULL DEFAULT 0,
+    is_locked       INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_topics_glade
+    ON topics(glade_id, COALESCE(last_message_at, created_at) DESC);
+
   CREATE TABLE IF NOT EXISTS presence (
     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    glade_id     INTEGER NOT NULL REFERENCES glades(id) ON DELETE CASCADE,
+    topic_id     INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
     joined_at    INTEGER NOT NULL DEFAULT (unixepoch()),
     last_seen    INTEGER NOT NULL DEFAULT (unixepoch()),
-    PRIMARY KEY (user_id, glade_id)
+    PRIMARY KEY (user_id, topic_id)
   );
 
   CREATE TABLE IF NOT EXISTS messages (
     id           INTEGER PRIMARY KEY,
-    glade_id     INTEGER NOT NULL REFERENCES glades(id) ON DELETE CASCADE,
+    topic_id     INTEGER NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
     user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     display_name TEXT NOT NULL,
     text         TEXT NOT NULL,
@@ -55,8 +70,8 @@ db.exec(`
     score        INTEGER NOT NULL DEFAULT 0
   );
 
-  CREATE INDEX IF NOT EXISTS idx_messages_glade
-    ON messages(glade_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_messages_topic
+    ON messages(topic_id, created_at DESC);
 
   CREATE TABLE IF NOT EXISTS votes (
     message_id   INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
@@ -71,12 +86,12 @@ db.exec(`
 // СИДЫ: 6 полян
 // ============================================================
 const GLADES = [
-  { slug: 'common', title: 'Общий костёр',  description: 'Просто посидеть. Без повода.',       mood: 'warm',   sort_order: 1 },
+  { slug: 'common', title: 'Общий костёр',   description: 'Просто посидеть. Без повода.',         mood: 'warm',   sort_order: 1 },
   { slug: 'advice', title: 'Спросить совета', description: 'Конкретный вопрос — конкретный ответ.', mood: 'calm',   sort_order: 2 },
-  { slug: 'vent',   title: 'Выговориться',  description: 'Тут не советуют. Тут слушают.',       mood: 'dark',   sort_order: 3 },
-  { slug: 'humor',  title: 'Поржать',       description: 'Тут не жалуются. Тут ржут.',          mood: 'bright', sort_order: 4 },
-  { slug: 'media',  title: 'Что читаете',   description: 'Книги, фильмы, музыка.',              mood: 'calm',   sort_order: 5 },
-  { slug: 'abyss',  title: 'Бездна',        description: 'Сырое, странное, случайное.',         mood: 'any',    sort_order: 6 },
+  { slug: 'vent',   title: 'Выговориться',   description: 'Тут не советуют. Тут слушают.',        mood: 'dark',   sort_order: 3 },
+  { slug: 'humor',  title: 'Поржать',        description: 'Тут не жалуются. Тут ржут.',           mood: 'bright', sort_order: 4 },
+  { slug: 'media',  title: 'Что читаете',    description: 'Книги, фильмы, музыка.',               mood: 'calm',   sort_order: 5 },
+  { slug: 'abyss',  title: 'Бездна',         description: 'Сырое, странное, случайное.',          mood: 'any',    sort_order: 6 },
 ];
 
 const insertGlade = db.prepare(`
@@ -117,14 +132,42 @@ export const queries = {
     SELECT * FROM glades WHERE id = ?
   `),
 
+  // --- темы ---
+  listTopics: db.prepare(`
+    SELECT t.*, u.display_name AS author_name
+    FROM topics t
+    LEFT JOIN users u ON u.id = t.created_by
+    WHERE t.glade_id = ?
+    ORDER BY COALESCE(t.last_message_at, t.created_at) DESC
+  `),
+  findTopicById: db.prepare(`
+    SELECT t.*, g.slug AS glade_slug, g.title AS glade_title
+    FROM topics t
+    JOIN glades g ON g.id = t.glade_id
+    WHERE t.id = ?
+  `),
+  createTopic: db.prepare(`
+    INSERT INTO topics (glade_id, title, description, created_by)
+    VALUES (?, ?, ?, ?)
+  `),
+  deleteTopic: db.prepare(`
+    DELETE FROM topics WHERE id = ?
+  `),
+  updateTopicActivity: db.prepare(`
+    UPDATE topics
+    SET last_message_at = unixepoch(),
+        message_count = message_count + 1
+    WHERE id = ?
+  `),
+
   // --- присутствие ---
   sit: db.prepare(`
-    INSERT INTO presence (user_id, glade_id, last_seen)
+    INSERT INTO presence (user_id, topic_id, last_seen)
     VALUES (?, ?, unixepoch())
-    ON CONFLICT(user_id, glade_id) DO UPDATE SET last_seen = unixepoch()
+    ON CONFLICT(user_id, topic_id) DO UPDATE SET last_seen = unixepoch()
   `),
   leave: db.prepare(`
-    DELETE FROM presence WHERE user_id = ? AND glade_id = ?
+    DELETE FROM presence WHERE user_id = ? AND topic_id = ?
   `),
   leaveAll: db.prepare(`
     DELETE FROM presence WHERE user_id = ?
@@ -132,36 +175,41 @@ export const queries = {
   listPresence: db.prepare(`
     SELECT u.id, u.display_name FROM presence p
     JOIN users u ON u.id = p.user_id
-    WHERE p.glade_id = ? AND p.last_seen > unixepoch() - 60
+    WHERE p.topic_id = ? AND p.last_seen > unixepoch() - 40
     ORDER BY p.joined_at ASC
   `),
   countPresence: db.prepare(`
     SELECT COUNT(*) AS n FROM presence
-    WHERE glade_id = ? AND last_seen > unixepoch() - 60
+    WHERE topic_id = ? AND last_seen > unixepoch() - 40
   `),
   cleanupStalePresence: db.prepare(`
-    DELETE FROM presence WHERE last_seen < unixepoch() - 120
+    DELETE FROM presence WHERE last_seen < unixepoch() - 70
   `),
 
   // --- сообщения ---
   insertMessage: db.prepare(`
-    INSERT INTO messages (glade_id, user_id, display_name, text, kind)
+    INSERT INTO messages (topic_id, user_id, display_name, text, kind)
     VALUES (?, ?, ?, ?, ?)
   `),
   getMessage: db.prepare(`
-    SELECT m.*, u.id AS user_id FROM messages m
+    SELECT m.*, u.id AS author_id FROM messages m
     JOIN users u ON u.id = m.user_id
     WHERE m.id = ?
   `),
   recentMessages: db.prepare(`
-    SELECT * FROM messages WHERE glade_id = ?
+    SELECT * FROM messages WHERE topic_id = ?
+    ORDER BY created_at DESC LIMIT ?
+  `),
+  messagesBefore: db.prepare(`
+    SELECT * FROM messages
+    WHERE topic_id = ? AND created_at < ?
     ORDER BY created_at DESC LIMIT ?
   `),
   countRecentMessages: db.prepare(`
     SELECT COUNT(*) AS n FROM messages
-    WHERE glade_id = ? AND created_at > unixepoch() - 300
+    WHERE topic_id = ? AND created_at > unixepoch() - 300
   `),
   lastMessageAt: db.prepare(`
-    SELECT MAX(created_at) AS t FROM messages WHERE glade_id = ?
+    SELECT MAX(created_at) AS t FROM messages WHERE topic_id = ?
   `),
 };

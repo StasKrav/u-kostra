@@ -1,10 +1,10 @@
 import { queries } from './db.js';
 
 // Активность = люди (0..10) + свежие реплики (0..10) + бонус свежести (0..5)
-export function computeActivity(gladeId) {
-  const people = queries.countPresence.get(gladeId).n;
-  const messages = queries.countRecentMessages.get(gladeId).n;
-  const last = queries.lastMessageAt.get(gladeId).t;
+export function computeActivity(topicId) {
+  const people = queries.countPresence.get(topicId).n;
+  const messages = queries.countRecentMessages.get(topicId).n;
+  const last = queries.lastMessageAt.get(topicId).t;
 
   const peopleWeight = Math.min(people, 10);
   const messagesWeight = Math.min(messages, 20) * 0.5;

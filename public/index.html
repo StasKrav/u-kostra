@@ -109,6 +109,20 @@
   </div>
 </div>
 
+<!-- === МОДАЛКА СОЗДАНИЯ ТЕМЫ === -->
+<div class="modal hidden" id="topic-modal">
+  <div class="modal-inner">
+    <h2>Новая тема</h2>
+    <p class="modal-hint">О чём хочешь поговорить? Одно короткое название — потом можно развивать.</p>
+    <input type="text" id="topic-title" maxlength="120" placeholder="Например: как пережить развод" autocomplete="off">
+    <input type="text" id="topic-desc" maxlength="300" placeholder="Описание (необязательно)" autocomplete="off">
+    <div class="modal-actions">
+      <button id="topic-cancel">Отмена</button>
+      <button id="topic-ok">Создать</button>
+    </div>
+  </div>
+</div>
+
 <script src="/app.js"></script>
 </body>
 </html>

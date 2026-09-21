@@ -9,7 +9,7 @@ const MAX_TEXT = 2000;
 const getUserById = db.prepare('SELECT * FROM users WHERE id = ?');
 
 const clients = new Map();          // userId -> entry
-const presenceIndex = new Map();    // gladeId -> Set<userId>
+const topicPresence = new Map();    // topicId -> Set<userId>
 
 function parseCookies(header) {
   const out = {};
@@ -25,8 +25,8 @@ function send(entry, payload) {
   if (entry.ws.readyState === 1) entry.ws.send(JSON.stringify(payload));
 }
 
-function broadcast(gladeId, payload, exceptUserId = null) {
-  const ids = presenceIndex.get(gladeId);
+function broadcastTopic(topicId, payload, exceptUserId = null) {
+  const ids = topicPresence.get(topicId);
   if (!ids) return;
   const json = JSON.stringify(payload);
   for (const uid of ids) {
@@ -36,19 +36,26 @@ function broadcast(gladeId, payload, exceptUserId = null) {
   }
 }
 
-function broadcastActivity(gladeId) {
-  broadcast(gladeId, {
+function broadcastActivity(topicId) {
+  broadcastTopic(topicId, {
     type: 'activity',
-    gladeId,
-    activity: computeActivity(gladeId),
+    topicId,
+    activity: computeActivity(topicId),
   });
 }
 
 function broadcastActivityAll() {
+  // Активность по всем темам всех полян — для огоньков в сайдбаре
   const glades = queries.listGlades.all();
   const activities = {};
   for (const g of glades) {
-    activities[g.slug] = computeActivity(g.id);
+    const topics = queries.listTopics.all(g.id);
+    let maxActivity = 0;
+    for (const t of topics) {
+      const a = computeActivity(t.id);
+      if (a > maxActivity) maxActivity = a;
+    }
+    activities[g.slug] = maxActivity;
   }
   const payload = JSON.stringify({ type: 'activity-all', activities });
   for (const entry of clients.values()) {
@@ -56,8 +63,8 @@ function broadcastActivityAll() {
   }
 }
 
-function presenceList(gladeId) {
-  return queries.listPresence.all(gladeId).map(u => ({
+function presenceList(topicId) {
+  return queries.listPresence.all(topicId).map(u => ({
     userId: u.id,
     name: u.display_name || 'Кто-то',
   }));
@@ -74,7 +81,7 @@ export function attachWebSocket(server) {
     const entry = {
       ws,
       userId: user.id,
-      sittingGlades: new Set(),
+      currentTopicId: null,
       lastSay: 0,
     };
     clients.set(user.id, entry);
@@ -85,15 +92,19 @@ export function attachWebSocket(server) {
     });
 
     ws.on('close', () => {
-      for (const gid of entry.sittingGlades) {
-        queries.leave.run(entry.userId, gid);
-        const set = presenceIndex.get(gid);
+      if (entry.currentTopicId !== null) {
+        queries.leave.run(entry.userId, entry.currentTopicId);
+        const set = topicPresence.get(entry.currentTopicId);
         if (set) {
           set.delete(entry.userId);
-          if (set.size === 0) presenceIndex.delete(gid);
+          if (set.size === 0) topicPresence.delete(entry.currentTopicId);
         }
-        broadcast(gid, { type: 'presence', gladeId: gid, users: presenceList(gid) });
-        broadcastActivity(gid);
+        broadcastTopic(entry.currentTopicId, {
+          type: 'presence',
+          topicId: entry.currentTopicId,
+          users: presenceList(entry.currentTopicId),
+        });
+        broadcastActivity(entry.currentTopicId);
       }
       clients.delete(entry.userId);
     });
@@ -103,72 +114,88 @@ export function attachWebSocket(server) {
 
   setInterval(() => {
     queries.cleanupStalePresence.run();
-    for (const gid of presenceIndex.keys()) broadcastActivity(gid);
+    for (const tid of topicPresence.keys()) broadcastActivity(tid);
     broadcastActivityAll();
   }, 10_000);
 }
 
 function handleMessage(entry, msg) {
   switch (msg.type) {
-    case 'watch': return handleWatch(entry, msg);
-    case 'sit':   return handleSit(entry, msg);
-    case 'leave': return handleLeave(entry, msg);
-    case 'say':   return handleSay(entry, msg);
-    case 'set-name': return handleSetName(entry, msg);
+    case 'enter-topic':  return handleEnterTopic(entry, msg);
+    case 'leave-topic':  return handleLeaveTopic(entry, msg);
+    case 'say':          return handleSay(entry, msg);
+    case 'set-name':     return handleSetName(entry, msg);
+    case 'ping':         return handlePing(entry);
   }
 }
 
-function handleWatch(entry, msg) {
-  const glade = queries.findGladeBySlug.get(msg.glade);
-  if (!glade) return;
-  const messages = queries.recentMessages.all(glade.id, 50).reverse();
+function handleEnterTopic(entry, msg) {
+  const topicId = Number(msg.topicId);
+  if (!topicId) return;
+  const topic = queries.findTopicById.get(topicId);
+  if (!topic) return;
+
+  // Выйти из старой темы
+  if (entry.currentTopicId !== null && entry.currentTopicId !== topicId) {
+    queries.leave.run(entry.userId, entry.currentTopicId);
+    const oldSet = topicPresence.get(entry.currentTopicId);
+    if (oldSet) {
+      oldSet.delete(entry.userId);
+      if (oldSet.size === 0) topicPresence.delete(entry.currentTopicId);
+    }
+    broadcastTopic(entry.currentTopicId, {
+      type: 'presence',
+      topicId: entry.currentTopicId,
+      users: presenceList(entry.currentTopicId),
+    });
+    broadcastActivity(entry.currentTopicId);
+  }
+
+  // Войти в новую
+  entry.currentTopicId = topicId;
+  queries.sit.run(entry.userId, topicId);
+
+  if (!topicPresence.has(topicId)) topicPresence.set(topicId, new Set());
+  topicPresence.get(topicId).add(entry.userId);
+
+  // История
+  const messages = queries.recentMessages.all(topicId, 50).reverse();
   send(entry, {
     type: 'history',
-    gladeId: glade.id,
-    gladeSlug: glade.slug,
-    activity: computeActivity(glade.id),
-    messages,
-  });
-}
-
-function handleSit(entry, msg) {
-  const glade = queries.findGladeBySlug.get(msg.glade);
-  if (!glade) return;
-
-  entry.sittingGlades.add(glade.id);
-  queries.sit.run(entry.userId, glade.id);
-
-  if (!presenceIndex.has(glade.id)) presenceIndex.set(glade.id, new Set());
-  presenceIndex.get(glade.id).add(entry.userId);
-
-  const messages = queries.recentMessages.all(glade.id, 50).reverse();
-  send(entry, {
-    type: 'history',
-    gladeId: glade.id,
-    gladeSlug: glade.slug,
-    activity: computeActivity(glade.id),
+    topicId,
+    topic,
+    activity: computeActivity(topicId),
     messages,
   });
 
-  broadcast(glade.id, { type: 'presence', gladeId: glade.id, users: presenceList(glade.id) });
-  broadcastActivity(glade.id);
+  // Список присутствующих
+  broadcastTopic(topicId, {
+    type: 'presence',
+    topicId,
+    users: presenceList(topicId),
+  });
+  broadcastActivity(topicId);
 }
 
-function handleLeave(entry, msg) {
-  const glade = queries.findGladeBySlug.get(msg.glade);
-  if (!glade) return;
+function handleLeaveTopic(entry, msg) {
+  const topicId = Number(msg.topicId);
+  if (!topicId) return;
+  if (entry.currentTopicId !== topicId) return;
 
-  entry.sittingGlades.delete(glade.id);
-  queries.leave.run(entry.userId, glade.id);
-
-  const set = presenceIndex.get(glade.id);
+  queries.leave.run(entry.userId, topicId);
+  const set = topicPresence.get(topicId);
   if (set) {
     set.delete(entry.userId);
-    if (set.size === 0) presenceIndex.delete(glade.id);
+    if (set.size === 0) topicPresence.delete(topicId);
   }
+  entry.currentTopicId = null;
 
-  broadcast(glade.id, { type: 'presence', gladeId: glade.id, users: presenceList(glade.id) });
-  broadcastActivity(glade.id);
+  broadcastTopic(topicId, {
+    type: 'presence',
+    topicId,
+    users: presenceList(topicId),
+  });
+  broadcastActivity(topicId);
 }
 
 function handleSay(entry, msg) {
@@ -178,8 +205,10 @@ function handleSay(entry, msg) {
     return;
   }
 
-  const glade = queries.findGladeBySlug.get(msg.glade);
-  if (!glade) return;
+  const topicId = Number(msg.topicId);
+  if (!topicId) return;
+  const topic = queries.findTopicById.get(topicId);
+  if (!topic) return;
 
   const text = String(msg.text || '').trim().slice(0, MAX_TEXT);
   if (!text) return;
@@ -187,16 +216,19 @@ function handleSay(entry, msg) {
   const user = getUserById.get(entry.userId);
   const displayName = user?.display_name || 'Аноним';
 
-  const info = queries.insertMessage.run(glade.id, entry.userId, displayName, text, 'normal');
+  const info = queries.insertMessage.run(topicId, entry.userId, displayName, text, 'normal');
   const message = queries.getMessage.get(info.lastInsertRowid);
+
+  queries.updateTopicActivity.run(topicId);
 
   entry.lastSay = now;
 
-  broadcast(glade.id, { type: 'reply', gladeId: glade.id, message });
-  broadcast(glade.id, {
+  broadcastTopic(topicId, { type: 'reply', topicId, message });
+  broadcastTopic(topicId, {
     type: 'speaking',
-    gladeId: glade.id,
+    topicId,
     name: displayName,
+    userId: entry.userId,
   }, entry.userId);
 }
 
@@ -206,4 +238,10 @@ function handleSetName(entry, msg) {
   const locked = msg.lock ? 1 : 0;
   queries.setDisplayName.run(name, locked, entry.userId);
   send(entry, { type: 'name-set', name, locked: !!locked });
+}
+
+function handlePing(entry) {
+  if (entry.currentTopicId !== null) {
+    queries.sit.run(entry.userId, entry.currentTopicId);
+  }
 }
