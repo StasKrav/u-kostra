@@ -1,0 +1,49 @@
+/* ============================================================
+   ДЕСКТОП — от 900px
+   ============================================================ */
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(200px, 1fr) 2fr minmax(320px, 1fr);
+  height: 100vh;
+}
+
+/* === САЙДБАР === */
+.glades {
+  background: rgba(8, 5, 3, 0.85);
+  border-right: 1px solid var(--wood);
+  padding: 24px 12px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ember-dim) transparent;
+}
+.glades::-webkit-scrollbar { width: 6px; }
+.glades::-webkit-scrollbar-thumb {
+  background: var(--ember-dim);
+  border-radius: 3px;
+}
+
+/* === ЦЕНТР === */
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+}
+
+/* === ПРАВАЯ КОЛОНКА === */
+.right {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: rgba(6, 4, 2, 0.4);
+  border-left: 1px solid var(--wood);
+}
+
+/* Огонь — крупнее на десктопе */
+#fire-video {
+  width: min(90%, 520px);
+}

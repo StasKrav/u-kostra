@@ -193,13 +193,11 @@ function handleSay(entry, msg) {
   entry.lastSay = now;
 
   broadcast(glade.id, { type: 'reply', gladeId: glade.id, message });
-  broadcastActivity(glade.id);
-  // Событие «говорящий появился» — рассылаем всем (включая автора)
   broadcast(glade.id, {
     type: 'speaking',
     gladeId: glade.id,
     name: displayName,
-  });
+  }, entry.userId);
 }
 
 function handleSetName(entry, msg) {

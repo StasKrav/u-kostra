@@ -4,37 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>У Костра</title>
+
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/desktop.css" media="(min-width: 900px)">
+<link rel="stylesheet" href="/mobile.css"  media="(max-width: 899px)">
 </head>
 <body>
 
 <div id="app">
+
+  <!-- === САЙДБАР === -->
   <aside class="glades" id="glades"></aside>
 
-  <main class="main-area">
-    <div class="top-bar">
-      <div class="glade-title">
-        <span class="label">Поляна</span>
-        <span class="title" id="glade-title">Общий костёр</span>
-      </div>
-      <div class="top-right">
-        <div class="online">
-          <span class="dot"></span>
-          <span id="online-count">0 сидят</span>
-        </div>
-      </div>
-    </div>
+  <!-- === ЦЕНТР: заголовок + разговор + ввод === -->
+  <main class="center">
+    <header class="glade-header">
+      <div class="glade-title" id="glade-title">Общий костёр</div>
+      <div class="glade-desc"  id="glade-desc">Просто посидеть. Без повода.</div>
+    </header>
 
-    <div class="stage">
-      <div class="scene" id="scene">
-        <div class="fire-glow" id="fire-glow"></div>
-        <video id="fire-video" autoplay loop muted playsinline preload="auto">
-          <source src="/sounds/fire.mp4" type="video/mp4">
-        </video>
-        <div class="people" id="people"></div>
-      </div>
-      <div class="replies" id="replies"></div>
-    </div>
+    <div class="replies" id="replies"></div>
 
     <div class="say">
       <div class="say-inner">
@@ -44,9 +33,66 @@
       <div class="say-hint" id="say-hint"></div>
     </div>
   </main>
+
+  <!-- === ПРАВАЯ КОЛОНКА: панель + костёр + шторка === -->
+  <aside class="right">
+
+    <div class="panel">
+      <div class="online">
+        <span class="dot"></span>
+        <span id="online-count">0</span>
+      </div>
+
+      <button class="panel-btn" id="sound-btn" title="Звук костра">
+        <svg class="icon icon-sound-on hidden" id="sound-icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+          <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+        </svg>
+        <svg class="icon icon-sound-off" id="sound-icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H2v6h4l5 4V5z"/>
+          <line x1="23" y1="9" x2="17" y2="15"/>
+          <line x1="17" y1="9" x2="23" y2="15"/>
+        </svg>
+      </button>
+
+      <button class="panel-btn" id="settings-btn" title="Настройки">
+        <svg class="icon icon-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="scene" id="scene">
+      <div class="fire-glow" id="fire-glow"></div>
+      <video id="fire-video" autoplay loop muted playsinline preload="auto">
+        <source src="/sounds/fire.mp4" type="video/mp4">
+      </video>
+      <div class="people" id="people"></div>
+
+      <!-- Шторка настроек — поверх костра -->
+      <div class="drawer" id="settings-drawer">
+        <div class="drawer-header">
+          <span>Настройки</span>
+          <button class="drawer-close" id="drawer-close" title="Закрыть">
+            <svg class="icon icon-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div class="drawer-body">
+          <p class="drawer-empty">Здесь будут настройки. Пока пусто.</p>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
 </div>
 
-<!-- Модалка выбора ника -->
+<!-- === МОДАЛКА НИКА === -->
 <div class="modal hidden" id="name-modal">
   <div class="modal-inner">
     <h2>Как тебя звать?</h2>

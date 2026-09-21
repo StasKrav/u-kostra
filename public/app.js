@@ -10,10 +10,12 @@ const state = {
   presence: [],
   activity: 0,
   targetActivity: 0,
-  activities: {},           // ← карта slug → активность
-  presenceByGlade: {},      // ← карта slug → число людей
+  activities: {},
+  presenceByGlade: {},
   ws: null,
   wsReady: false,
+  soundOn: false,       
+  fireAudio: null,      
 };
 // ============================================================
 // WS
@@ -50,14 +52,12 @@ function handleServerEvent(msg) {
       if (msg.gladeId !== state.currentGlade.id) return;
       state.messages.push(msg.message);
       renderMessages();
-      spawnSpeaker(msg.message.display_name || 'Аноним');
       break;
     
     case 'speaking':
       if (msg.gladeId !== state.currentGlade.id) return;
-      if (msg.name !== state.me.displayName) {
-        spawnSpeaker(msg.name || 'Аноним');
-      }
+      if (msg.userId === state.me.userId) return;
+      spawnSpeaker(msg.name || 'Аноним');
       break;
     case 'presence':
       if (msg.gladeId !== state.currentGlade.id) return;
@@ -99,6 +99,7 @@ async function init() {
   // initFire();
   connectWS();
   bindUI();
+  requestAnimationFrame(tickFire);
 }
 
 // ============================================================
@@ -131,11 +132,13 @@ function enterGlade(slug, silent) {
   }
 
   state.currentGlade = g;
+  updateFireIntensity(state.targetActivity);
   state.messages = [];
   state.presence = [];
   state.sitting = true;
 
   document.getElementById('glade-title').textContent = g.title;
+  document.getElementById('glade-desc').textContent = g.description || '';
   renderGlades();
   updateGladeCounts();
   renderMessages();
@@ -171,15 +174,14 @@ function updateGladeSparks() {
 }
 
 function updateGladeCounts() {
-  // Обновляем счётчик только для активной поляны (для остальных у нас нет данных)
   const items = document.querySelectorAll('.glade-item');
   items.forEach(el => {
     const countEl = el.querySelector('[data-count]');
     if (!countEl) return;
 
     if (el.dataset.slug === state.currentGlade.slug) {
-      const n = state.presence.length;
-      countEl.textContent = n > 0 ? n : '';
+      const others = state.presence.filter(p => p.userId !== state.me.userId);
+      countEl.textContent = others.length > 0 ? others.length : '';
     } else {
       countEl.textContent = '';
     }
@@ -254,7 +256,9 @@ function spawnSpeaker(name) {
 }
 
 function updateOnline() {
-  const n = state.presence.length;
+  const others = state.presence.filter(p => p.userId !== state.me.userId);
+  const n = others.length;
+
   document.getElementById('online-count').textContent =
     n === 0 ? 'никого' :
     n === 1 ? '1 рядом' :
@@ -273,18 +277,52 @@ function applyMood(mood) {
 // ИНТЕНСИВНОСТЬ ОГНЯ (от активности)
 // ============================================================
 let displayedIntensity = 0.5;
-function updateFireIntensity(activity) {
-  const target = Math.max(0, Math.min(activity / 25, 1));
-  displayedIntensity += (target - displayedIntensity) * 0.15;
-  document.documentElement.style.setProperty('--fire-intensity', displayedIntensity.toFixed(3));
+// ============================================================
+// ОГОНЬ — реакция на активность + настроение поляны
+// ============================================================
+const MOOD_TINT = {
+  warm:   0,
+  bright: +5,
+  calm:   -3,
+  dark:   -10,
+  any:    0,
+};
+
+let currentFire = { brightness: 0.8, scale: 1, saturate: 1, glow: 0.3, hue: 0 };
+let targetFire  = { brightness: 0.8, scale: 1, saturate: 1, glow: 0.3, hue: 0 };
+
+function computeFireTarget(activity, mood) {
+  const t = Math.max(0, Math.min(activity / 25, 1));  // 0..1
+
+  return {
+    brightness: 0.5 + t * 0.7,     // 0.5..1.2
+    scale:      0.9 + t * 0.2,     // 0.9..1.1
+    saturate:   0.8 + t * 0.4,     // 0.8..1.2
+    glow:       0.1 + t * 0.5,     // 0.1..0.6
+    hue:        MOOD_TINT[mood] || 0,
+  };
 }
 
-function updateOnline() {
-  const n = state.presence.length;
-  document.getElementById('online-count').textContent =
-    n === 0 ? 'никого' :
-    n === 1 ? '1 рядом' :
-    `${n} рядом`;
+function updateFireIntensity(activity) {
+  const mood = state.currentGlade?.mood;
+  targetFire = computeFireTarget(activity, mood);
+}
+
+function tickFire() {
+  // Плавная интерполяция
+  const k = 0.06;
+  for (const key of Object.keys(currentFire)) {
+    currentFire[key] += (targetFire[key] - currentFire[key]) * k;
+  }
+
+  const root = document.documentElement;
+  root.style.setProperty('--fire-brightness', currentFire.brightness.toFixed(3));
+  root.style.setProperty('--fire-scale',      currentFire.scale.toFixed(3));
+  root.style.setProperty('--fire-saturate',   currentFire.saturate.toFixed(3));
+  root.style.setProperty('--fire-glow',       currentFire.glow.toFixed(3));
+  root.style.setProperty('--fire-hue',        currentFire.hue.toFixed(1) + 'deg');
+
+  requestAnimationFrame(tickFire);
 }
 
 // ============================================================
@@ -518,6 +556,87 @@ function bindUI() {
   document.getElementById('name-input').addEventListener('keydown', e => {
     if (e.key === 'Enter') submitName();
   });
+
+  // Шторка настроек
+  const drawer = document.getElementById('settings-drawer');
+  document.getElementById('settings-btn').onclick = () => {
+    drawer.classList.toggle('open');
+  };
+  document.getElementById('drawer-close').onclick = () => {
+    drawer.classList.remove('open');
+  };
+
+  // Кнопка звука
+  document.getElementById('sound-btn').onclick = toggleSound;
+  
+  // Иконка звука — стартовое состояние
+  setSoundIcon(false);
+}
+
+// ============================================================
+// ЗВУК КОСТРА
+// ============================================================
+function toggleSound() {
+  if (state.soundOn) stopSound();
+  else startSound();
+}
+
+function startSound() {
+  if (!state.fireAudio) {
+    state.fireAudio = new Audio('/sounds/fire.mp3');
+    state.fireAudio.loop = true;
+    state.fireAudio.volume = 0;
+    state.fireAudio.preload = 'auto';
+  }
+
+  state.fireAudio.play().then(() => {
+    let vol = 0;
+    const fadeIn = setInterval(() => {
+      vol += 0.03;
+      if (vol >= 0.6) {
+        vol = 0.6;
+        clearInterval(fadeIn);
+      }
+      state.fireAudio.volume = vol;
+    }, 50);
+
+    state.soundOn = true;
+    setSoundIcon(true);
+  }).catch(e => {
+    console.warn('Не удалось запустить звук:', e);
+    showHint('Не удалось загрузить звук костра.');
+    setSoundIcon(false);
+    state.soundOn = false;
+  });
+}
+
+function stopSound() {
+  if (state.fireAudio) {
+    let vol = state.fireAudio.volume;
+    const fadeOut = setInterval(() => {
+      vol -= 0.05;
+      if (vol <= 0) {
+        vol = 0;
+        clearInterval(fadeOut);
+        state.fireAudio.pause();
+        state.fireAudio.currentTime = 0;
+      }
+      state.fireAudio.volume = vol;
+    }, 40);
+  }
+  state.soundOn = false;
+  setSoundIcon(false);
+}
+
+function setSoundIcon(on) {
+  const onIcon  = document.getElementById('sound-icon-on');
+  const offIcon = document.getElementById('sound-icon-off');
+  const btn     = document.getElementById('sound-btn');
+  if (!onIcon || !offIcon || !btn) return;
+
+  onIcon.classList.toggle('hidden', !on);
+  offIcon.classList.toggle('hidden', on);
+  btn.classList.toggle('on', on);
 }
 
 function say() {

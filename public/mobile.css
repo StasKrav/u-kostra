@@ -1,0 +1,141 @@
+/* ============================================================
+   МОБИЛЬНЫЕ — до 899px
+   ============================================================ */
+
+#app {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Сайдбар — горизонтальный скролл сверху */
+.glades {
+  width: 100%;
+  display: flex;
+  overflow-x: auto;
+  padding: 10px 10px 8px;
+  border-right: none;
+  border-bottom: 1px solid var(--wood);
+  background: rgba(8, 5, 3, 0.85);
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+.glades::-webkit-scrollbar { display: none; }
+
+.glade-item {
+  flex-shrink: 0;
+  margin-right: 6px;
+  margin-bottom: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* Центр — растягивается */
+.center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.glade-header {
+  padding: 10px 14px 8px;
+}
+.glade-title { font-size: 15px; }
+.glade-desc  { font-size: 11px; }
+
+/* Реплики — над сценой, до 40vh */
+.replies {
+  order: 1;
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 40vh;
+  padding: 8px 12px 4px;
+  justify-content: flex-end;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 20%);
+}
+
+.reply {
+  font-size: 13px;
+  padding: 7px 11px;
+  margin-bottom: 4px;
+}
+.reply .who { font-size: 9px; }
+
+/* Правая колонка — сцена внизу */
+.right {
+  order: 2;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 200px;
+  border-left: none;
+  border-top: 1px solid var(--wood);
+  background: transparent;
+}
+
+.panel {
+  order: 0;
+  padding: 8px 12px;
+  border-bottom: none;
+  border-top: none;
+  background: transparent;
+}
+.panel-btn {
+  width: 32px;
+  height: 32px;
+}
+.online { font-size: 11px; }
+
+.scene {
+  order: 1;
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+#fire-video {
+  width: min(92vw, 420px);
+  bottom: -20px;
+}
+.fire-glow {
+  width: 100vw;
+  height: 300px;
+  bottom: -60px;
+}
+
+.people {
+  width: 100%;
+  max-width: 340px;
+  height: 160px;
+  bottom: 20px;
+}
+.person { width: 38px; height: 38px; font-size: 13px; }
+.person .name { font-size: 10px; top: -20px; }
+
+/* Ввод — фиксирован внизу */
+.say {
+  padding: 8px 12px 12px;
+  flex-shrink: 0;
+  border-top: 1px solid rgba(42, 31, 24, 0.6);
+  background: linear-gradient(to top, rgba(6, 4, 2, 0.95), rgba(6, 4, 2, 0.7));
+}
+.say-inner { gap: 8px; }
+.say textarea {
+  padding: 10px 14px;
+  font-size: 14px;
+  min-height: 44px;
+  max-height: 100px;
+}
+.say button {
+  padding: 10px 16px;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+.say-hint { font-size: 10px; }
+
+/* Шторка настроек — на мобильных выезжает сверху сцены */
+.drawer {
+  max-height: 70%;
+}
