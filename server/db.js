@@ -86,18 +86,23 @@ db.exec(`
 // СИДЫ: 6 полян
 // ============================================================
 const GLADES = [
-  { slug: 'common', title: 'Общий костёр',   description: 'Просто посидеть. Без повода.',         mood: 'warm',   sort_order: 1 },
-  { slug: 'advice', title: 'Спросить совета', description: 'Конкретный вопрос — конкретный ответ.', mood: 'calm',   sort_order: 2 },
+  { slug: 'common', title: 'Большой Костёр', description: 'Просто посидеть. Без повода.',         mood: 'warm',   sort_order: 1 },
+  { slug: 'advice', title: 'Страна Советов', description: 'Конкретный вопрос — конкретный ответ.', mood: 'calm',   sort_order: 2 },
   { slug: 'vent',   title: 'Выговориться',   description: 'Тут не советуют. Тут слушают.',        mood: 'dark',   sort_order: 3 },
-  { slug: 'humor',  title: 'Поржать',        description: 'Тут не жалуются. Тут ржут.',           mood: 'bright', sort_order: 4 },
-  { slug: 'media',  title: 'Что читаете',    description: 'Книги, фильмы, музыка.',               mood: 'calm',   sort_order: 5 },
-  { slug: 'abyss',  title: 'Бездна',         description: 'Сырое, странное, случайное.',          mood: 'any',    sort_order: 6 },
+  { slug: 'humor',  title: 'Юмор',           description: 'Тут не жалуются. Тут смеются.',        mood: 'bright', sort_order: 4 },
+  { slug: 'media',  title: 'Саморазвитие',   description: 'Книги, фильмы, привычки, навыки.',      mood: 'calm',   sort_order: 5 },
+  { slug: 'sport',  title: 'Спорт',          description: 'Бег, зал, велосипед, плавание.',        mood: 'bright', sort_order: 6 },
+  { slug: 'abyss',  title: 'Бездна',         description: 'Сырое, странное, случайное.',           mood: 'any',    sort_order: 7 },
 ];
 
 const insertGlade = db.prepare(`
   INSERT INTO glades (slug, title, description, mood, sort_order, is_permanent)
   VALUES (@slug, @title, @description, @mood, @sort_order, 1)
-  ON CONFLICT(slug) DO NOTHING
+  ON CONFLICT(slug) DO UPDATE SET
+    title = excluded.title,
+    description = excluded.description,
+    mood = excluded.mood,
+    sort_order = excluded.sort_order
 `);
 
 for (const g of GLADES) insertGlade.run(g);
