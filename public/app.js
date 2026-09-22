@@ -108,6 +108,11 @@ async function init() {
   state.glades = glades;
   state.currentGlade = glades[0];
 
+  // Стартовая модалка — показать, если ещё не видел
+  if (!localStorage.getItem('koster_intro_seen')) {
+    document.getElementById('intro-modal').classList.remove('hidden');
+  }
+
   renderSidebar();
   // initFire();
   connectWS();
@@ -789,6 +794,12 @@ function bindUI() {
   
   // Иконка звука — стартовое состояние
   setSoundIcon(false);
+
+  // Стартовая модалка — обработчик
+  document.getElementById('intro-ok').onclick = () => {
+    document.getElementById('intro-modal').classList.add('hidden');
+    localStorage.setItem('koster_intro_seen', '1');
+  };
 }
 
 // ============================================================
