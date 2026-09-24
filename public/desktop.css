@@ -4,16 +4,21 @@
 
 #app {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 1600px;
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) 2fr minmax(320px, 1fr);
+  grid-template-columns: minmax(200px, 2fr) 3fr minmax(320px, 2fr);
   height: 100vh;
 }
 
 /* === САЙДБАР === */
 .glades {
   background: rgba(8, 5, 3, 0.85);
-  border-right: 1px solid var(--wood);
+  /* border-right: 1px solid var(--wood); */
   /* padding: 24px 12px; */
   overflow-y: auto;
   scrollbar-width: thin;
@@ -47,3 +52,5 @@
 #fire-video {
   width: min(90%, 520px);
 }
+
+

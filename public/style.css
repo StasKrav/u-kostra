@@ -203,7 +203,7 @@ body {
   letter-spacing: 2px;
   text-transform: uppercase;
   color: var(--text-faint);
-  border-bottom: 1px solid var(--wood);
+  /* border-bottom: 1px solid var(--wood); */
   margin-bottom: 8px;
 }
 
@@ -389,7 +389,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 12px 20px;
-  border-bottom: 1px solid var(--wood);
+  /* border-bottom: 1px solid var(--wood); */
   flex-shrink: 0;
 }
 .online {
