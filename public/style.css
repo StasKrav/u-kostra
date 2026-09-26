@@ -277,13 +277,13 @@ body {
 
 /* === РЕПЛИКИ === */
 .replies {
-  flex: 1;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow-y: auto; 
   padding: 20px 32px;
-  display: flex;
+  display: flex; 
   flex-direction: column;
-  justify-content: flex-end;
+  /* justify-content: flex-end; */
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 8%);
   mask-image: linear-gradient(to bottom, transparent 0%, black 8%);
   scrollbar-width: thin;
@@ -293,6 +293,7 @@ body {
 .replies::-webkit-scrollbar-thumb {
   background: var(--ember-dim);
   border-radius: 3px;
+  overflow-anchor: none; 
 }
 
 .reply {
@@ -305,7 +306,7 @@ body {
   font-size: 14px;
   line-height: 1.5;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 107, 26, 0.06);
-  backdrop-filter: blur(6px);
+  /* backdrop-filter: blur(6px); */
   animation: replyAppear 0.5s cubic-bezier(.2, .9, .3, 1.1);
 }
 .reply .who {
@@ -609,7 +610,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  backdrop-filter: blur(4px);
+  /* backdrop-filter: blur(4px); */
 }
 .modal-inner {
   max-width: 460px;
@@ -793,4 +794,43 @@ body {
   border-color: var(--ember);
   color: #fff;
   box-shadow: 0 0 30px rgba(255, 107, 26, 0.4);
+}
+
+/* === ОБЁРТКА РЕПЛИК === */
+.replies-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* === ИНДИКАТОР ЗАГРУЗКИ === */
+.history-loader {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(10, 6, 4, 0.9);
+  border: 1px solid var(--wood);
+  border-radius: 3px;
+  z-index: 10;
+  pointer-events: none;
+}
+.history-loader-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ember);
+  animation: loaderPulse 1.2s ease-in-out infinite;
+}
+.history-loader-dot:nth-child(2) { animation-delay: 0.15s; }
+.history-loader-dot:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes loaderPulse {
+  0%, 100% { opacity: 0.2; transform: scale(0.8); }
+  50%      { opacity: 1;   transform: scale(1); }
 }

@@ -20,6 +20,9 @@ const state = {
   topicsByGlade: {},      
   sidebarView: 'glades',
   commonTopicId: null,
+  hasMoreHistory: true,
+  loadingHistory: false,
+  loadMoreRaf: null,
 };
 // ============================================================
 // WS
@@ -52,16 +55,17 @@ function handleServerEvent(msg) {
       state.currentTopic = msg.topic;
       state.messages = msg.messages;
       state.targetActivity = msg.activity;
-      renderMessages();
+      renderMessages({ scrollToBottom: true });
       updateGladeHeader();
       break;
 
     case 'reply':
       if (msg.topicId !== state.currentTopic?.id) return;
+      if (state.messages.some(m => m.id === msg.message.id)) return;
       state.messages.push(msg.message);
-      renderMessages();
+      appendReply(msg.message);
       break;
-
+      
     case 'speaking':
       if (msg.topicId !== state.currentTopic?.id) return;
       if (msg.userId === state.me.userId) return;
@@ -97,10 +101,34 @@ function handleServerEvent(msg) {
   }
 }
 
+function appendReply(m) {
+  const el = document.getElementById('replies');
+
+  // Считаем ДО вставки — пока layout старый
+  const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
+
+  if (el.children.length >= 500) {
+    el.removeChild(el.firstChild);
+  }
+
+  el.appendChild(renderReply(m));
+
+  if (wasAtBottom) {
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }
+}
+
 // ============================================================
 // ИНИЦИАЛИЗАЦИЯ
 // ============================================================
 async function init() {
+  // Ждём загрузки шрифтов, чтобы layout был стабильным
+  if (document.fonts && document.fonts.ready) {
+    await document.fonts.ready;
+  }
+
   const me = await fetch('/api/me').then(r => r.json());
   state.me = me;
 
@@ -111,13 +139,14 @@ async function init() {
   // Стартовая модалка — показать, если ещё не видел
   if (!localStorage.getItem('koster_intro_seen')) {
     document.getElementById('intro-modal').classList.remove('hidden');
+    document.getElementById('fire-video').pause();
   }
 
   renderSidebar();
   // initFire();
   connectWS();
   bindUI();
-  requestAnimationFrame(tickFire);
+  // requestAnimationFrame(tickFire);
 }
 
 // ============================================================
@@ -139,10 +168,8 @@ function renderSidebar() {
   // Содержимое — в зависимости от состояния
   if (state.sidebarView === 'glades') {
     renderGladeSection(gladesEl);
-  } else if (state.sidebarView === 'topics') {
-    renderTopicsSection(gladesEl, topicsEl, { inTopic: false });
-  } else if (state.sidebarView === 'topic') {
-    renderTopicsSection(gladesEl, topicsEl, { inTopic: true });
+  } else {
+    renderTopicsSection(gladesEl, topicsEl);
   }
 
   updateGladeSparks();
@@ -184,53 +211,51 @@ function renderGladeSection(el) {
   });
 }
 
-function renderTopicsSection(gladesEl, topicsEl, { inTopic }) {
+function renderTopicsSection(gladesEl, topicsEl) {
   const glade = state.currentGlade;
   if (!glade) return;
 
-  // Заголовок — всегда название поляны
-    const title = document.createElement('div');
-    title.className = 'sidebar-section-title';
-    title.textContent = glade.title;
-    gladesEl.appendChild(title);
+  // Заголовок — название поляны
+  const title = document.createElement('div');
+  title.className = 'sidebar-section-title';
+  title.textContent = glade.title;
+  gladesEl.appendChild(title);
 
   // Строка с кнопками — во второй колонке
   const bar = document.createElement('div');
   bar.className = 'topics-bar-inner';
 
-  // Стрелка назад
+  // Стрелка назад — всегда
   const back = document.createElement('button');
   back.className = 'sidebar-back';
-  back.title = inTopic ? 'К темам' : 'К полянам';
+  back.title = 'К полянам';
   back.innerHTML = `
     <svg class="icon icon-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="15 18 9 12 15 6"/>
     </svg>
   `;
   back.onclick = () => {
-    state.sidebarView = inTopic ? 'topics' : 'glades';
+    state.sidebarView = 'glades';
     renderSidebar();
   };
   bar.appendChild(back);
 
-  // Плюс — только если НЕ в теме
-  if (!inTopic) {
-    const spacer = document.createElement('div');
-    spacer.className = 'topics-bar-spacer';
-    bar.appendChild(spacer);
+  // Плюс — всегда
+  const spacer = document.createElement('div');
+  spacer.className = 'topics-bar-spacer';
+  bar.appendChild(spacer);
 
-    const newBtn = document.createElement('button');
-    newBtn.className = 'topic-new';
-    newBtn.title = 'Новая тема';
-    newBtn.innerHTML = `
-      <svg class="icon icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"/>
-        <line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-    `;
-    newBtn.onclick = () => openTopicModal();
-    bar.appendChild(newBtn);
-  }
+  const newBtn = document.createElement('button');
+  newBtn.className = 'topic-new';
+  newBtn.title = 'Новая тема';
+  newBtn.innerHTML = `
+    <svg class="icon icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/>
+      <line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+  `;
+  newBtn.onclick = () => openTopicModal();
+  bar.appendChild(newBtn);
 
   topicsEl.appendChild(bar);
 
@@ -302,17 +327,13 @@ async function enterGlade(slug) {
       const topic = data.topics[0];
       if (topic) {
         state.commonTopicId = topic.id;
-        // Заходим в служебную тему, но сайдбар остаётся списком полян
-        enterTopic(topic, /* keepSidebarView */ true);
         state.sidebarView = 'glades';
+        enterTopic(topic);
       }
-    
     } else {
       state.sidebarView = 'topics';
-      // Заходим в первую (самую активную) тему,
-      // но сайдбар оставляем на списке тем.
       if (data.topics.length >= 1) {
-        enterTopic(data.topics[0], /* keepSidebarView */ true);
+        enterTopic(data.topics[0]);
       }
     }
   } catch (e) {
@@ -322,9 +343,8 @@ async function enterGlade(slug) {
   renderSidebar();
 }
 
-function enterTopic(topic, keepSidebarView = false) {
+function enterTopic(topic) {
   if (state.currentTopic?.id === topic.id) {
-    if (!keepSidebarView) state.sidebarView = 'topic';
     renderSidebar();
     return;
   }
@@ -332,7 +352,6 @@ function enterTopic(topic, keepSidebarView = false) {
   state.currentTopic = topic;
   state.messages = [];
   state.presence = [];
-  if (!keepSidebarView) state.sidebarView = 'topic';
 
   updateGladeHeader();
   renderMessages();
@@ -340,6 +359,9 @@ function enterTopic(topic, keepSidebarView = false) {
   renderSidebar();
 
   wsSend({ type: 'enter-topic', topicId: topic.id });
+
+  state.hasMoreHistory = true;
+  state.loadingHistory = false;
 }
 
 function updateGladeHeader() {
@@ -519,16 +541,31 @@ function computeFireTarget(activity, mood) {
   };
 }
 
+let fireRAF = null;
+
 function updateFireIntensity(activity) {
   const mood = state.currentGlade?.mood;
   targetFire = computeFireTarget(activity, mood);
+  startFireLoop();   // запускаем цикл, если ещё не запущен
+}
+
+function startFireLoop() {
+  if (fireRAF) return;   // уже крутится
+  fireRAF = requestAnimationFrame(tickFire);
 }
 
 function tickFire() {
-  // Плавная интерполяция
   const k = 0.06;
+  let stillMoving = false;
+
   for (const key of Object.keys(currentFire)) {
-    currentFire[key] += (targetFire[key] - currentFire[key]) * k;
+    const diff = targetFire[key] - currentFire[key];
+    if (Math.abs(diff) > 0.001) {
+      currentFire[key] += diff * k;
+      stillMoving = true;
+    } else {
+      currentFire[key] = targetFire[key];
+    }
   }
 
   const root = document.documentElement;
@@ -538,18 +575,45 @@ function tickFire() {
   root.style.setProperty('--fire-glow',       currentFire.glow.toFixed(3));
   root.style.setProperty('--fire-hue',        currentFire.hue.toFixed(1) + 'deg');
 
-  requestAnimationFrame(tickFire);
+  if (stillMoving) {
+    fireRAF = requestAnimationFrame(tickFire);
+  } else {
+    fireRAF = null;   // остановились
+  }
 }
 
 // ============================================================
 // РЕПЛИКИ
 // ============================================================
-function renderMessages() {
+function renderMessages(options = {}) {
+  const { scrollToBottom = false } = options;
   const el = document.getElementById('replies');
+
+  // Сколько реплик держать в DOM
+  const MAX_IN_DOM = 500;
+
+  // Определяем диапазон для рендера
+  let from, to;
+  if (state.messages.length <= MAX_IN_DOM) {
+    from = 0;
+    to = state.messages.length;
+  } else {
+    from = state.messages.length - MAX_IN_DOM;
+    to = state.messages.length;
+  }
+
+  const visible = state.messages.slice(from, to);
+
+  // Просто рисуем. Скролл не трогаем.
   el.innerHTML = '';
-  const last = state.messages.slice(-30);
-  last.forEach(m => el.appendChild(renderReply(m)));
-  el.scrollTop = el.scrollHeight;
+  visible.forEach(m => el.appendChild(renderReply(m)));
+
+  // Если просили — скроллим вниз, но в следующем кадре
+  if (scrollToBottom) {
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
+  }
 }
 
 function renderReply(m) {
@@ -562,188 +626,6 @@ function renderReply(m) {
   div.appendChild(document.createTextNode(m.text));
   return div;
 }
-
-// // ============================================================
-// // ОГОНЬ — оптимизированная версия
-// // ============================================================
-// const fireCanvas = document.getElementById('fire-canvas');
-// const ctx = fireCanvas.getContext('2d', { alpha: true });
-// let particles = [];
-// let canvasW = 0, canvasH = 0;
-// let currentScale = 1;
-// let flameSprite = null;
-// let lastFrameTime = 0;
-// const TARGET_FPS = 30;
-// const FRAME_INTERVAL = 1000 / TARGET_FPS;
-// 
-// function initFire() {
-//   resizeCanvas();
-//   window.addEventListener('resize', () => {
-//     ctx.setTransform(1, 0, 0, 1, 0, 0);
-//     resizeCanvas();
-//   });
-// 
-//   // Спрайт пламени рисуем один раз
-//   flameSprite = createFlameSprite();
-// 
-//   for (let i = 0; i < 70; i++) particles.push(createFlame());   // было 110
-//   for (let i = 0; i < 15; i++) particles.push(createSpark(true)); // было 25
-// 
-//   document.addEventListener('visibilitychange', () => {
-//     if (!document.hidden) {
-//       lastFrameTime = 0;
-//       requestAnimationFrame(animateFire);
-//     }
-//   });
-// 
-//   requestAnimationFrame(animateFire);
-// }
-// 
-// function resizeCanvas() {
-//   const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // ← потолок DPR
-//   const isMobile = window.innerWidth < 900;
-// 
-//   // Жёсткий лимит физического размера
-//   const cssW = Math.min(window.innerWidth * 0.5, isMobile ? 260 : 420);
-//   const cssH = isMobile ? 260 : 360;
-// 
-//   canvasW = cssW;
-//   canvasH = cssH;
-// 
-//   fireCanvas.width = Math.round(cssW * dpr);
-//   fireCanvas.height = Math.round(cssH * dpr);
-//   fireCanvas.style.width = cssW + 'px';
-//   fireCanvas.style.height = cssH + 'px';
-//   ctx.scale(dpr, dpr);
-// }
-// 
-// // Offscreen-спрайт пламени — рисуется один раз
-// function createFlameSprite() {
-//   const size = 64;
-//   const c = document.createElement('canvas');
-//   c.width = size;
-//   c.height = size;
-//   const g = c.getContext('2d');
-// 
-//   const grad = g.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
-//   grad.addColorStop(0,   'rgba(255, 240, 200, 1)');
-//   grad.addColorStop(0.25,'rgba(255, 180, 80, 0.9)');
-//   grad.addColorStop(0.5, 'rgba(255, 110, 30, 0.6)');
-//   grad.addColorStop(0.8, 'rgba(200, 60, 10, 0.2)');
-//   grad.addColorStop(1,   'rgba(120, 30, 0, 0)');
-// 
-//   g.fillStyle = grad;
-//   g.beginPath();
-//   g.arc(size/2, size/2, size/2, 0, Math.PI * 2);
-//   g.fill();
-// 
-//   return c;
-// }
-// 
-// function createFlame() {
-//   return {
-//     type: 'flame',
-//     x: canvasW / 2 + (Math.random() - 0.5) * 90,
-//     y: canvasH - 20 + Math.random() * 10,
-//     vx: (Math.random() - 0.5) * 0.4,
-//     vy: -(1.5 + Math.random() * 2.5),
-//     life: 0, maxLife: 60 + Math.random() * 60,
-//     size: 12 + Math.random() * 24,
-//   };
-// }
-// 
-// function createSpark(initial = false) {
-//   return {
-//     type: 'spark',
-//     x: canvasW / 2 + (Math.random() - 0.5) * 60,
-//     y: canvasH - 30 - Math.random() * 20,
-//     vx: (Math.random() - 0.5) * 1.5,
-//     vy: -(1 + Math.random() * 2),
-//     life: initial ? Math.random() * 200 : 0,
-//     maxLife: 120 + Math.random() * 100,
-//     size: 1 + Math.random() * 2,
-//   };
-// }
-// 
-// function animateFire(now = 0) {
-//   // Троттлинг FPS
-//   if (now - lastFrameTime < FRAME_INTERVAL) {
-//     requestAnimationFrame(animateFire);
-//     return;
-//   }
-//   lastFrameTime = now;
-// 
-//   // Пауза при скрытой вкладке
-//   if (document.hidden) return;
-// 
-//   // Плавная интерполяция активности → масштаб
-//   const targetScale = 0.7 + Math.min(state.targetActivity, 25) / 25 * 0.6;
-//   currentScale += (targetScale - currentScale) * 0.05;
-// 
-//   ctx.globalCompositeOperation = 'source-over';
-//   ctx.fillStyle = 'rgba(6, 4, 2, 0.22)';  // чуть плотнее — сглаживает хвосты
-//   ctx.fillRect(0, 0, canvasW, canvasH);
-// 
-//   ctx.globalCompositeOperation = 'lighter';
-//   const breath = 0.7 + 0.3 * Math.sin(now / 1400);
-//   const cx = canvasW / 2;
-// 
-//   // Пламя — рисуем спрайтами
-//   for (let i = 0; i < particles.length; i++) {
-//     const p = particles[i];
-//     p.life++;
-//     p.x += p.vx;
-//     p.y += p.vy;
-//     p.vy *= 0.985;
-//     p.vx += (Math.random() - 0.5) * 0.1;
-// 
-//     const lifeRatio = p.life / p.maxLife;
-//     const alpha = Math.max(0, 1 - lifeRatio) * breath * currentScale;
-// 
-//     if (p.type === 'flame') {
-//       const r = p.size * (1 - lifeRatio * 0.4) * currentScale;
-//       if (r > 0.5) {
-//         ctx.globalAlpha = alpha;
-//         ctx.drawImage(flameSprite, p.x - r, p.y - r, r * 2, r * 2);
-//       }
-//     } else {
-//       // Искра — просто точка, без shadowBlur
-//       ctx.globalAlpha = alpha;
-//       ctx.fillStyle = 'rgba(255, 200, 120, 1)';
-//       ctx.beginPath();
-//       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-//       ctx.fill();
-//     }
-// 
-//     if (p.life >= p.maxLife) {
-//       particles[i] = p.type === 'flame' ? createFlame() : createSpark();
-//     }
-//   }
-//   ctx.globalAlpha = 1;
-// 
-//   // Мягкое свечение основания (один градиент на кадр — терпимо)
-//   const glowR = 140 * breath * currentScale;
-//   const g = ctx.createRadialGradient(cx, canvasH - 30, 0, cx, canvasH - 30, glowR);
-//   g.addColorStop(0, `rgba(255, 130, 40, ${0.28 * breath})`);
-//   g.addColorStop(0.5, `rgba(255, 80, 20, ${0.1 * breath})`);
-//   g.addColorStop(1, 'rgba(255, 60, 10, 0)');
-//   ctx.fillStyle = g;
-//   ctx.fillRect(0, 0, canvasW, canvasH);
-// 
-//   // Угли (без изменений, но их мало — 12 штук)
-//   ctx.globalCompositeOperation = 'lighter';
-//   for (let i = 0; i < 12; i++) {
-//     const ex = cx + (Math.random() - 0.5) * 100 * currentScale;
-//     const ey = canvasH - 15 + (Math.random() - 0.5) * 8;
-//     const a = Math.random() * 0.5 * breath;
-//     ctx.fillStyle = `rgba(255, 80, 20, ${a})`;
-//     ctx.beginPath();
-//     ctx.arc(ex, ey, (1.5 + Math.random() * 2) * currentScale, 0, Math.PI * 2);
-//     ctx.fill();
-//   }
-// 
-//   requestAnimationFrame(animateFire);
-// }
 
 // ============================================================
 // UI
@@ -798,8 +680,22 @@ function bindUI() {
   // Стартовая модалка — обработчик
   document.getElementById('intro-ok').onclick = () => {
     document.getElementById('intro-modal').classList.add('hidden');
+    document.getElementById('fire-video').play();
     localStorage.setItem('koster_intro_seen', '1');
   };
+
+  bindScrollListener();
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (fireRAF) {
+        cancelAnimationFrame(fireRAF);
+        fireRAF = null;
+      }
+    } else {
+      startFireLoop();
+    }
+  });
 }
 
 // ============================================================
@@ -889,10 +785,12 @@ let pendingText = null;
 function openNameModal(text) {
   pendingText = text;
   document.getElementById('name-modal').classList.remove('hidden');
+  document.getElementById('fire-video').pause();
   setTimeout(() => document.getElementById('name-input').focus(), 100);
 }
 function closeNameModal() {
   document.getElementById('name-modal').classList.add('hidden');
+  document.getElementById('fire-video').play();
   pendingText = null;
 }
 function submitName() {
@@ -904,6 +802,7 @@ function submitName() {
   state.me.displayName = name;
 
   document.getElementById('name-modal').classList.add('hidden');
+  document.getElementById('fire-video').play();
 
   if (pendingText && state.currentTopic) {
     wsSend({ type: 'say', topicId: state.currentTopic.id, text: pendingText });
@@ -920,11 +819,13 @@ function openTopicModal() {
   document.getElementById('topic-title').value = '';
   document.getElementById('topic-desc').value = '';
   document.getElementById('topic-modal').classList.remove('hidden');
+  document.getElementById('fire-video').pause();
   setTimeout(() => document.getElementById('topic-title').focus(), 100);
 }
 
 function closeTopicModal() {
   document.getElementById('topic-modal').classList.add('hidden');
+  document.getElementById('fire-video').play();
 }
 
 async function submitTopic() {
@@ -955,6 +856,81 @@ async function submitTopic() {
     alert('Не удалось создать тему');
   }
 }
+
+function bindScrollListener() {
+  const el = document.getElementById('replies');
+  if (!el || el._scrollBound) return;
+  el._scrollBound = true;
+
+  let scrollThrottle = null;
+  el.addEventListener('scroll', () => {
+    if (scrollThrottle) return;
+    scrollThrottle = setTimeout(() => {
+      scrollThrottle = null;
+      if (el.scrollTop < 100) {
+        loadMoreHistory();
+      }
+    }, 100);
+  });
+}
+
+async function loadMoreHistory() {
+  if (state.loadingHistory) return;
+  if (!state.hasMoreHistory) return;
+  if (!state.currentTopic) return;
+  if (state.messages.length === 0) return;
+
+  state.loadingHistory = true;
+  showHistoryLoader();
+
+  const el = document.getElementById('replies');
+  const prevScrollHeight = el.scrollHeight;
+  const prevScrollTop = el.scrollTop;
+
+  const oldest = state.messages[0];
+  const before = oldest.created_at;
+
+  try {
+    const res = await fetch(
+      `/api/topics/${state.currentTopic.id}/messages?before=${before}&limit=50`
+    );
+    if (!res.ok) throw new Error('failed to load history');
+    const data = await res.json();
+
+    if (data.messages.length === 0) {
+      state.hasMoreHistory = false;
+    } else {
+      state.messages = [...data.messages, ...state.messages];
+      renderMessages();
+
+      // Один RAF — ставит скролл и отпускает флаг
+      requestAnimationFrame(() => {
+        const newScrollHeight = el.scrollHeight;
+        el.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+        state.loadingHistory = false;
+        hideHistoryLoader();
+      });
+      return;   // ← не сбрасываем флаг в finally
+    }
+  } catch (e) {
+    console.error('Не удалось загрузить историю:', e);
+  }
+
+  state.loadingHistory = false;
+  hideHistoryLoader();
+}
+
+function showHistoryLoader() {
+  const loader = document.getElementById('history-loader');
+  if (loader) loader.classList.remove('hidden');
+}
+
+function hideHistoryLoader() {
+  const loader = document.getElementById('history-loader');
+  if (loader) loader.classList.add('hidden');
+}
+
+
 // ============================================================
 // УТИЛИТЫ
 // ============================================================
